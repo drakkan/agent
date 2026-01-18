@@ -74,9 +74,9 @@ func TestSetupForwardAgent(t *testing.T) {
 	if server == nil {
 		t.Fatal("Unable to get server")
 	}
-	ch, reqs, err := server.OpenChannel(channelType, nil)
+	ch, reqs, err := server.OpenChannel(authAgentChannelType, nil)
 	if err != nil {
-		t.Fatalf("OpenChannel(%q): %v", channelType, err)
+		t.Fatalf("OpenChannel(%q): %v", authAgentChannelType, err)
 	}
 	go ssh.DiscardRequests(reqs)
 
