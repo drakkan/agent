@@ -494,8 +494,8 @@ func parseKey(in []byte) (out *Key, rest []byte, err error) {
 	}, record.Rest, nil
 }
 
-// client is a client for an ssh-agent process.
-type client struct {
+// Client is a client for an ssh-agent process.
+type Client struct {
 	// conn is typically a *net.UnixConn
 	conn io.ReadWriter
 	// mu is used to prevent concurrent access to the agent
@@ -504,14 +504,14 @@ type client struct {
 
 // NewClient returns an Agent that talks to an ssh-agent process over
 // the given connection.
-func NewClient(rw io.ReadWriter) ExtendedAgent {
-	return &client{conn: rw}
+func NewClient(rw io.ReadWriter) *Client {
+	return &Client{conn: rw}
 }
 
 // call sends an RPC to the agent. On success, the reply is
 // unmarshaled into reply and replyType is set to the first byte of
 // the reply, which contains the type of the message.
-func (c *client) call(req []byte) (reply interface{}, err error) {
+func (c *Client) call(req []byte) (reply interface{}, err error) {
 	buf, err := c.callRaw(req)
 	if err != nil {
 		return nil, err
@@ -526,7 +526,7 @@ func (c *client) call(req []byte) (reply interface{}, err error) {
 // callRaw sends an RPC to the agent. On success, the raw
 // bytes of the response are returned; no unmarshalling is
 // performed on the response.
-func (c *client) callRaw(req []byte) (reply []byte, err error) {
+func (c *Client) callRaw(req []byte) (reply []byte, err error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -553,7 +553,7 @@ func (c *client) callRaw(req []byte) (reply []byte, err error) {
 	return buf, nil
 }
 
-func (c *client) simpleCall(req []byte) error {
+func (c *Client) simpleCall(req []byte) error {
 	resp, err := c.call(req)
 	if err != nil {
 		return err
@@ -564,25 +564,25 @@ func (c *client) simpleCall(req []byte) error {
 	return errors.New("agent: failure")
 }
 
-func (c *client) RemoveAll() error {
+func (c *Client) RemoveAll() error {
 	return c.simpleCall([]byte{agentRemoveAllIdentities})
 }
 
-func (c *client) Remove(key ssh.PublicKey) error {
+func (c *Client) Remove(key ssh.PublicKey) error {
 	req := ssh.Marshal(&agentRemoveIdentityMsg{
 		KeyBlob: key.Marshal(),
 	})
 	return c.simpleCall(req)
 }
 
-func (c *client) Lock(passphrase []byte) error {
+func (c *Client) Lock(passphrase []byte) error {
 	req := ssh.Marshal(&agentLockMsg{
 		Passphrase: passphrase,
 	})
 	return c.simpleCall(req)
 }
 
-func (c *client) Unlock(passphrase []byte) error {
+func (c *Client) Unlock(passphrase []byte) error {
 	req := ssh.Marshal(&agentUnlockMsg{
 		Passphrase: passphrase,
 	})
@@ -590,7 +590,7 @@ func (c *client) Unlock(passphrase []byte) error {
 }
 
 // List returns the identities known to the agent.
-func (c *client) List() ([]*Key, error) {
+func (c *Client) List() ([]*Key, error) {
 	// see [PROTOCOL.agent] section 2.5.2.
 	req := []byte{agentRequestIdentities}
 
@@ -624,11 +624,11 @@ func (c *client) List() ([]*Key, error) {
 
 // Sign has the agent sign the data using a protocol 2 key as defined
 // in [PROTOCOL.agent] section 2.6.2.
-func (c *client) Sign(key ssh.PublicKey, data []byte) (*ssh.Signature, error) {
+func (c *Client) Sign(key ssh.PublicKey, data []byte) (*ssh.Signature, error) {
 	return c.SignWithFlags(key, data, 0)
 }
 
-func (c *client) SignWithFlags(key ssh.PublicKey, data []byte, flags SignatureFlags) (*ssh.Signature, error) {
+func (c *Client) SignWithFlags(key ssh.PublicKey, data []byte, flags SignatureFlags) (*ssh.Signature, error) {
 	req := ssh.Marshal(signRequestAgentMsg{
 		KeyBlob: key.Marshal(),
 		Data:    data,
@@ -723,7 +723,7 @@ type ed25519KeyMsg struct {
 }
 
 // Insert adds a private key to the agent.
-func (c *client) insertKey(s interface{}, comment string, constraints []byte) error {
+func (c *Client) insertKey(s interface{}, comment string, constraints []byte) error {
 	var req []byte
 	switch k := s.(type) {
 	case *rsa.PrivateKey:
@@ -839,7 +839,7 @@ type ed25519CertMsg struct {
 
 // Add adds a private key to the agent. If a certificate is given,
 // that certificate is added instead as public key.
-func (c *client) Add(key InputKey) error {
+func (c *Client) Add(key InputKey) error {
 	var constraints []byte
 
 	if secs := key.LifetimeSecs; secs != 0 {
@@ -857,7 +857,7 @@ func (c *client) Add(key InputKey) error {
 	return c.insertCert(key.PrivateKey, cert, key.Comment, constraints)
 }
 
-func (c *client) insertCert(s interface{}, cert *ssh.Certificate, comment string, constraints []byte) error {
+func (c *Client) insertCert(s interface{}, cert *ssh.Certificate, comment string, constraints []byte) error {
 	var req []byte
 	switch k := s.(type) {
 	case *rsa.PrivateKey:
@@ -940,7 +940,7 @@ func (c *client) insertCert(s interface{}, cert *ssh.Certificate, comment string
 }
 
 // Signers provides a callback for client authentication.
-func (c *client) Signers() ([]ssh.Signer, error) {
+func (c *Client) Signers() ([]ssh.Signer, error) {
 	keys, err := c.List()
 	if err != nil {
 		return nil, err
@@ -954,7 +954,7 @@ func (c *client) Signers() ([]ssh.Signer, error) {
 }
 
 type agentKeyringSigner struct {
-	agent *client
+	agent *Client
 	pub   ssh.PublicKey
 }
 
@@ -1018,7 +1018,7 @@ func underlyingAlgo(algo string) string {
 // any particular extension is supported and may always return an error. Because the
 // type of the response is up to the implementation, this returns the bytes of the
 // response and does not attempt any type of unmarshalling.
-func (c *client) Extension(extensionType string, contents []byte) ([]byte, error) {
+func (c *Client) Extension(extensionType string, contents []byte) ([]byte, error) {
 	req := ssh.Marshal(extensionAgentMsg{
 		ExtensionType: extensionType,
 		Contents:      contents,

@@ -99,10 +99,10 @@ func TestV1ProtocolMessages(t *testing.T) {
 
 	go ServeAgent(NewKeyring(), c2)
 
-	testV1ProtocolMessages(t, c.(*client))
+	testV1ProtocolMessages(t, c)
 }
 
-func testV1ProtocolMessages(t *testing.T, c *client) {
+func testV1ProtocolMessages(t *testing.T, c *Client) {
 	reply, err := c.call([]byte{agentRequestV1Identities})
 	if err != nil {
 		t.Fatalf("v1 request all failed: %v", err)

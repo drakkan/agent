@@ -24,7 +24,7 @@ import (
 )
 
 // startOpenSSHAgent executes ssh-agent, and returns an Agent interface to it.
-func startOpenSSHAgent(t *testing.T) (client ExtendedAgent, socket string, cleanup func()) {
+func startOpenSSHAgent(t *testing.T) (client *Client, socket string, cleanup func()) {
 	if testing.Short() {
 		// ssh-agent is not always available, and the key
 		// types supported vary by platform.
@@ -92,7 +92,7 @@ func startOpenSSHAgent(t *testing.T) (client ExtendedAgent, socket string, clean
 	}
 }
 
-func startAgent(t *testing.T, agent Agent) (client ExtendedAgent, cleanup func()) {
+func startAgent(t *testing.T, agent Agent) (client *Client, cleanup func()) {
 	c1, c2, err := netPipe()
 	if err != nil {
 		t.Fatalf("netPipe: %v", err)
