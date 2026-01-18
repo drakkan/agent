@@ -5,6 +5,7 @@
 package agent
 
 import (
+	"context"
 	"crypto"
 	"crypto/rand"
 	"fmt"
@@ -28,11 +29,7 @@ func TestServer(t *testing.T) {
 
 	go ServeAgent(NewKeyring(), c2)
 
-	testAgentInterface(t, client, testPrivateKeys["rsa"], nil, 0)
-}
-
-func TestLockServer(t *testing.T) {
-	testLockAgent(NewKeyring(), t)
+	testAgentClient(t, client, testPrivateKeys["rsa"], nil, 0)
 }
 
 func TestSetupForwardAgent(t *testing.T) {
@@ -84,7 +81,7 @@ func TestSetupForwardAgent(t *testing.T) {
 	go ssh.DiscardRequests(reqs)
 
 	agentClient := NewClient(ch)
-	testAgentInterface(t, agentClient, testPrivateKeys["rsa"], nil, 0)
+	testAgentClient(t, agentClient, testPrivateKeys["rsa"], nil, 0)
 	conn.Close()
 }
 
@@ -120,7 +117,33 @@ func testV1ProtocolMessages(t *testing.T, c *Client) {
 	}
 }
 
-func verifyKey(sshAgent Agent) error {
+func verifyServerKey(agent Agent) error {
+	keys, err := agent.List(context.Background(), nil)
+	if err != nil {
+		return fmt.Errorf("listing keys: %v", err)
+	}
+
+	if len(keys) != 1 {
+		return fmt.Errorf("bad number of keys found. expected 1, got %d", len(keys))
+	}
+
+	buf := make([]byte, 128)
+	if _, err := rand.Read(buf); err != nil {
+		return fmt.Errorf("rand: %v", err)
+	}
+
+	sig, err := agent.Sign(context.Background(), keys[0], buf, nil)
+	if err != nil {
+		return fmt.Errorf("sign: %v", err)
+	}
+
+	if err := keys[0].Verify(buf, sig); err != nil {
+		return fmt.Errorf("verify: %v", err)
+	}
+	return nil
+}
+
+func verifyKey(sshAgent *Client) error {
 	keys, err := sshAgent.List()
 	if err != nil {
 		return fmt.Errorf("listing keys: %v", err)
@@ -148,10 +171,10 @@ func verifyKey(sshAgent Agent) error {
 
 func addKeyToAgent(key crypto.PrivateKey) error {
 	sshAgent := NewKeyring()
-	if err := sshAgent.Add(InputKey{PrivateKey: key}); err != nil {
+	if err := sshAgent.Add(context.Background(), InputKey{PrivateKey: key}, nil); err != nil {
 		return fmt.Errorf("add: %v", err)
 	}
-	return verifyKey(sshAgent)
+	return verifyServerKey(sshAgent)
 }
 
 func TestKeyTypes(t *testing.T) {
@@ -182,10 +205,10 @@ func addCertToAgentSock(key crypto.PrivateKey, cert *ssh.Certificate) error {
 
 func addCertToAgent(key crypto.PrivateKey, cert *ssh.Certificate) error {
 	sshAgent := NewKeyring()
-	if err := sshAgent.Add(InputKey{PrivateKey: key, Certificate: cert}); err != nil {
+	if err := sshAgent.Add(context.Background(), InputKey{PrivateKey: key, Certificate: cert}, nil); err != nil {
 		return fmt.Errorf("add: %v", err)
 	}
-	return verifyKey(sshAgent)
+	return verifyServerKey(sshAgent)
 }
 
 func TestCertTypes(t *testing.T) {

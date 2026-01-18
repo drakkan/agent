@@ -22,10 +22,117 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+// SignatureFlags represent additional flags that can be passed to the signature
+// requests an defined in [PROTOCOL.agent] section 4.5.1.
+type SignatureFlags uint32
+
+// SignatureFlag values as defined in [PROTOCOL.agent] section 5.3.
+const (
+	SignatureFlagReserved SignatureFlags = 1 << iota
+	SignatureFlagRsaSha256
+	SignatureFlagRsaSha512
+)
+
+// Agent represents the server-side implementation of an SSH agent.
+//
+// This interface defines the capabilities required to manage SSH identities,
+// process signing requests, and handle protocol extensions. All methods accept
+// a context.Context for cancellation and timeout management. Crucially, most
+// methods accept a *Session or *SignOptions, allowing the implementation to
+// enforce granular security policies.
+type Agent interface {
+	// List returns the identities known to the agent.
+	//
+	//
+	// If a session is provided, the agent may filter the returned keys based
+	// on destination constraints. For example, keys that are not permitted
+	// for the current session hops may be hidden to prevent enumeration.
+	List(ctx context.Context, session *Session) ([]*Key, error)
+
+	// Sign has the agent sign the data using a protocol 2 key as defined
+	// in [PROTOCOL.agent] section 2.6.2.
+	//
+	// The options parameter allows passing the current Session state. The agent
+	// validates the request against the session bindings and the key's
+	// constraints before signing.
+	Sign(ctx context.Context, key ssh.PublicKey, data []byte, options *SignOptions) (*ssh.Signature, error)
+
+	// Add adds a private key to the agent.
+	//
+	// If a session is provided, the agent verifies that the operation is
+	// permitted within the context of that session.
+	Add(ctx context.Context, key InputKey, session *Session) error
+
+	// Remove removes all identities with the given public key.
+	//
+	// If a session is provided, the agent may refuse to remove a key if the
+	// session constraints do not allow visibility of that key (preventing
+	// oracle attacks).
+	Remove(ctx context.Context, key ssh.PublicKey, session *Session) error
+
+	// RemoveAll removes all identities.
+	RemoveAll(ctx context.Context, session *Session) error
+
+	// Lock locks the agent. Sign and Remove will fail, and List will empty an empty list.
+	Lock(ctx context.Context, passphrase []byte, session *Session) error
+
+	// Unlock undoes the effect of Lock
+	Unlock(ctx context.Context, passphrase []byte, session *Session) error
+
+	// Extension processes a custom extension request. Standard-compliant agents
+	// are not required to support any extensions, but this method allows agents
+	// to implement vendor-specific methods or add experimental features. See
+	// [PROTOCOL.agent] section 4.7.
+	//
+	// The session parameter provides the current session context, which may be
+	// relevant for extensions that verify the connection topology or session
+	// bindings.
+	//
+	// If agent extensions are unsupported entirely this method MUST return an
+	// ErrExtensionUnsupported error. Similarly, if just the specific
+	// extensionType in the request is unsupported by the agent then
+	// ErrExtensionUnsupported MUST be returned.
+	//
+	// In the case of success, since [PROTOCOL.agent] section 4.7 specifies that
+	// the contents of the response are unspecified (including the type of the
+	// message), the complete response will be returned as a []byte slice,
+	// including the "type" byte of the message.
+	Extension(ctx context.Context, extensionType string, contents []byte, session *Session) ([]byte, error)
+}
+
+// SignOptions contains additional parameters for the Sign operation.
+type SignOptions struct {
+	Flags SignatureFlags
+	// Session represents the current session state associated with the request.
+	Session *Session
+}
+
+// Session represents the state of the current connection to the agent,
+// specifically tracking the chain of session binds (hops) established via the
+// "session-bind@openssh.com" extension.
+type Session struct {
+	// Binds contains the list of hops recorded for this connection.
+	Binds []SessionBind
+	// BindsAttempted indicates if the client has attempted to send session-bind
+	// messages, even if the list is empty.
+	BindsAttempted bool
+}
+
+// ConstraintExtension describes an optional constraint defined by users.
+type ConstraintExtension struct {
+	// ExtensionName consist of a UTF-8 string suffixed by the
+	// implementation domain following the naming scheme defined
+	// in Section 4.2 of RFC 4251, e.g.  "foo@example.com".
+	ExtensionName string
+	// ExtensionDetails contains the actual content of the extended
+	// constraint.
+	ExtensionDetails []byte
+}
+
 // server wraps an Agent and uses it to implement the agent side of
 // the SSH-agent, wire protocol.
 type server struct {
-	agent         AgentV2
+	agent         Agent
 	sessionBinds  []SessionBind
 	bindAttempted bool
 }
@@ -570,32 +677,13 @@ func (s *server) insertIdentity(req []byte) error {
 	return s.agent.Add(context.Background(), *inputKey, s.Session())
 }
 
-// ServeAgent serves the agent protocol on the given connection. It
-// returns when an I/O error occurs.
+// ServeAgent serves the Agent protocol on the given connection. It returns
+// when an I/O error occurs.
 //
-// While this function accepts the legacy [Agent] interface, it explicitly
-// detects the implementation returned by [NewKeyring]. If agent was created by
-// [NewKeyring], ServeAgent unwraps the underlying [AgentV2] implementation and
-// delegates to [ServeAgentV2]. This ensures that extended capabilities, such as
-// destination restrictions and session binding, are fully supported and
-// enforced.
-//
-// For custom Agent implementations that do not implement AgentV2, a
-// compatibility layer is used. In this case, V2-specific features (like
-// enforcing constraints based on session context) will not be available.
+// It supports the "session-bind@openssh.com" extension, maintaining the state
+// of the connection's session binds and passing them to the underlying Agent
+// implementation for constraint verification.
 func ServeAgent(agent Agent, c io.ReadWriter) error {
-	if adapter, ok := agent.(*agentV1Adapter); ok {
-		return ServeAgentV2(adapter.agent, c)
-	}
-	return ServeAgentV2(&agentV2Adapter{agent}, c)
-}
-
-// ServeAgentV2 serves the AgentV2 protocol on the given connection.
-//
-// Unlike ServeAgent, it supports the "session-bind@openssh.com" extension,
-// maintaining the state of the connection's session binds and passing them to
-// the underlying AgentV2 implementation for constraint verification.
-func ServeAgentV2(agent AgentV2, c io.ReadWriter) error {
 	s := &server{agent, nil, false}
 
 	var length [4]byte

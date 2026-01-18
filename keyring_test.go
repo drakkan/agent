@@ -13,25 +13,25 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-func addTestKey(t *testing.T, a Agent, keyName string) {
-	err := a.Add(InputKey{
+func addTestKey(t *testing.T, a Agent, keyName string, session *Session) {
+	err := a.Add(context.Background(), InputKey{
 		PrivateKey: testPrivateKeys[keyName],
 		Comment:    keyName,
-	})
+	}, session)
 	if err != nil {
 		t.Fatalf("failed to add key %q: %v", keyName, err)
 	}
 }
 
-func removeTestKey(t *testing.T, a Agent, keyName string) {
-	err := a.Remove(testPublicKeys[keyName])
+func removeTestKey(t *testing.T, a Agent, keyName string, session *Session) {
+	err := a.Remove(context.Background(), testPublicKeys[keyName], session)
 	if err != nil {
 		t.Fatalf("failed to remove key %q: %v", keyName, err)
 	}
 }
 
-func validateListedKeys(t *testing.T, a Agent, expectedKeys []string) {
-	listedKeys, err := a.List()
+func validateListedKeys(t *testing.T, a Agent, expectedKeys []string, session *Session) {
+	listedKeys, err := a.List(context.Background(), session)
 	if err != nil {
 		t.Fatalf("failed to list keys: %v", err)
 		return
@@ -67,23 +67,23 @@ func TestKeyringAddingAndRemoving(t *testing.T) {
 	// add all test private keys
 	k := NewKeyring()
 	for _, keyName := range keyNames {
-		addTestKey(t, k, keyName)
+		addTestKey(t, k, keyName, nil)
 	}
-	validateListedKeys(t, k, keyNames)
+	validateListedKeys(t, k, keyNames, nil)
 
 	// remove a key in the middle
 	keyToRemove := keyNames[1]
 	keyNames = append(keyNames[:1], keyNames[2:]...)
 
-	removeTestKey(t, k, keyToRemove)
-	validateListedKeys(t, k, keyNames)
+	removeTestKey(t, k, keyToRemove, nil)
+	validateListedKeys(t, k, keyNames, nil)
 
 	// remove all keys
-	err := k.RemoveAll()
+	err := k.RemoveAll(context.Background(), nil)
 	if err != nil {
 		t.Fatalf("failed to remove all keys: %v", err)
 	}
-	validateListedKeys(t, k, []string{})
+	validateListedKeys(t, k, []string{}, nil)
 }
 
 func TestAddDuplicateKey(t *testing.T) {
@@ -91,26 +91,26 @@ func TestAddDuplicateKey(t *testing.T) {
 
 	k := NewKeyring()
 	for _, keyName := range keyNames {
-		addTestKey(t, k, keyName)
+		addTestKey(t, k, keyName, nil)
 	}
-	validateListedKeys(t, k, keyNames)
+	validateListedKeys(t, k, keyNames, nil)
 	// Add the keys again.
 	for _, keyName := range keyNames {
-		addTestKey(t, k, keyName)
+		addTestKey(t, k, keyName, nil)
 	}
-	validateListedKeys(t, k, keyNames)
+	validateListedKeys(t, k, keyNames, nil)
 	// Add an existing key with an updated comment.
 	keyName := keyNames[0]
 	InputKey := InputKey{
 		PrivateKey: testPrivateKeys[keyName],
 		Comment:    "comment updated",
 	}
-	err := k.Add(InputKey)
+	err := k.Add(context.Background(), InputKey, nil)
 	if err != nil {
 		t.Fatalf("failed to add key %q: %v", keyName, err)
 	}
 	// Check the that key is found and the comment was updated.
-	keys, err := k.List()
+	keys, err := k.List(context.Background(), nil)
 	if err != nil {
 		t.Fatalf("failed to list keys: %v", err)
 	}
@@ -966,8 +966,8 @@ func TestNormalizeHost(t *testing.T) {
 	}
 }
 
-func TestAgentV2Operations(t *testing.T) {
-	k := NewKeyringV2()
+func TestAgentConstraintsOperations(t *testing.T) {
+	k := NewKeyring()
 
 	jumpHostKey := testPublicKeys["ecdsa"]
 	destHostKey := testPublicKeys["rsa"]
@@ -1123,7 +1123,7 @@ func TestAgentV2Operations(t *testing.T) {
 }
 
 func TestRemoveAllIgnoresConstraints(t *testing.T) {
-	k := NewKeyringV2()
+	k := NewKeyring()
 
 	constraints := []DestinationConstraint{
 		newConstraint().

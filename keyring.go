@@ -320,21 +320,12 @@ type keyring struct {
 
 var errLocked = errors.New("agent: locked")
 
-// NewKeyring returns an Agent that holds keys in memory.  It is safe
-// for concurrent use by multiple goroutines.
-//
-// The returned Agent is backed by an [AgentV2] implementation. When used with
-// [ServeAgent] or [ForwardToAgent], it automatically supports extended
-// capabilities such as destination restrictions and session binding.
-func NewKeyring() Agent {
-	return &agentV1Adapter{agent: NewKeyringV2()}
-}
-
-// NewKeyringV2 returns a new in-memory AgentV2 implementation.
+// NewKeyringV2 returns a new in-memory Agent implementation. It is safe for
+// concurrent use by multiple goroutines.
 //
 // It supports "restrict-destination-v00@openssh.com" constraints and enforces
 // them based on the Session information provided during calls.
-func NewKeyringV2() AgentV2 {
+func NewKeyring() Agent {
 	return &keyring{}
 }
 
@@ -555,22 +546,6 @@ func (r *keyring) Sign(ctx context.Context, key ssh.PublicKey, data []byte, opti
 		}
 	}
 	return nil, errors.New("not found")
-}
-
-// Signers returns signers for all the known keys.
-func (r *keyring) Signers(ctx context.Context) ([]ssh.Signer, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.locked {
-		return nil, errLocked
-	}
-
-	r.expireKeysLocked()
-	s := make([]ssh.Signer, 0, len(r.keys))
-	for _, k := range r.keys {
-		s = append(s, k.signer)
-	}
-	return s, nil
 }
 
 // The keyring does not support any extensions

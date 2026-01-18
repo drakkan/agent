@@ -6,6 +6,7 @@ package agent
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"encoding/binary"
 	"errors"
@@ -106,7 +107,7 @@ func startAgent(t *testing.T, agent Agent) (client *Client, cleanup func()) {
 }
 
 // startKeyringAgent uses Keyring to simulate a ssh-agent Server and returns a client.
-func startKeyringAgent(t *testing.T) (client ExtendedAgent, cleanup func()) {
+func startKeyringAgent(t *testing.T) (client *Client, cleanup func()) {
 	return startAgent(t, NewKeyring())
 }
 
@@ -114,17 +115,17 @@ func testOpenSSHAgent(t *testing.T, key interface{}, cert *ssh.Certificate, life
 	agent, _, cleanup := startOpenSSHAgent(t)
 	defer cleanup()
 
-	testAgentInterface(t, agent, key, cert, lifetimeSecs)
+	testAgentClient(t, agent, key, cert, lifetimeSecs)
 }
 
 func testKeyringAgent(t *testing.T, key interface{}, cert *ssh.Certificate, lifetimeSecs uint32) {
 	agent, cleanup := startKeyringAgent(t)
 	defer cleanup()
 
-	testAgentInterface(t, agent, key, cert, lifetimeSecs)
+	testAgentClient(t, agent, key, cert, lifetimeSecs)
 }
 
-func testAgentInterface(t *testing.T, agent ExtendedAgent, key interface{}, cert *ssh.Certificate, lifetimeSecs uint32) {
+func testAgentClient(t *testing.T, agent *Client, key interface{}, cert *ssh.Certificate, lifetimeSecs uint32) {
 	signer, err := ssh.NewSignerFromKey(key)
 	if err != nil {
 		t.Fatalf("NewSignerFromKey(%T): %v", key, err)
@@ -457,7 +458,7 @@ func TestLockKeyringAgent(t *testing.T) {
 	testLockAgent(agent, t)
 }
 
-func testLockAgent(agent Agent, t *testing.T) {
+func testLockAgent(agent *Client, t *testing.T) {
 	if err := agent.Add(InputKey{PrivateKey: testPrivateKeys["rsa"], Comment: "comment 1"}); err != nil {
 		t.Errorf("Add: %v", err)
 	}
@@ -524,7 +525,7 @@ func testKeyringAgentLifetime(t *testing.T) {
 	testAgentLifetime(t, agent)
 }
 
-func testAgentLifetime(t *testing.T, agent Agent) {
+func testAgentLifetime(t *testing.T, agent *Client) {
 	for _, keyType := range []string{"rsa", "dsa", "ecdsa"} {
 		// Add private keys to the agent.
 		err := agent.Add(InputKey{
@@ -561,10 +562,10 @@ func testAgentLifetime(t *testing.T, agent Agent) {
 }
 
 type keyringExtended struct {
-	*agentV1Adapter
+	Agent
 }
 
-func (r *keyringExtended) Extension(extensionType string, contents []byte) ([]byte, error) {
+func (r *keyringExtended) Extension(ctx context.Context, extensionType string, contents []byte, session *Session) ([]byte, error) {
 	if extensionType != "my-extension@example.com" {
 		return []byte{agentExtensionFailure}, nil
 	}
