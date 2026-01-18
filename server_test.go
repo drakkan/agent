@@ -25,7 +25,7 @@ func TestServer(t *testing.T) {
 	}
 	defer c1.Close()
 	defer c2.Close()
-	client := NewClient(c1)
+	client := NewClientFromConn(c1)
 
 	go ServeAgent(NewKeyring(), c2)
 
@@ -80,7 +80,7 @@ func TestSetupForwardAgent(t *testing.T) {
 	}
 	go ssh.DiscardRequests(reqs)
 
-	agentClient := NewClient(ch)
+	agentClient := NewClientFromConn(ch)
 	testAgentClient(t, agentClient, testPrivateKeys["rsa"], nil, 0)
 	conn.Close()
 }
@@ -92,7 +92,7 @@ func TestV1ProtocolMessages(t *testing.T) {
 	}
 	defer c1.Close()
 	defer c2.Close()
-	c := NewClient(c1)
+	c := NewClientFromConn(c1)
 
 	go ServeAgent(NewKeyring(), c2)
 
@@ -196,7 +196,7 @@ func addCertToAgentSock(key crypto.PrivateKey, cert *ssh.Certificate) error {
 	agentServer := NewKeyring()
 	go ServeAgent(agentServer, a)
 
-	agentClient := NewClient(b)
+	agentClient := NewClientFromConn(b)
 	if err := agentClient.Add(InputKey{PrivateKey: key, Certificate: cert}); err != nil {
 		return fmt.Errorf("add: %v", err)
 	}

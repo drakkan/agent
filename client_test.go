@@ -82,7 +82,7 @@ func startOpenSSHAgent(t *testing.T) (client *Client, socket string, cleanup fun
 		t.Fatalf("net.Dial: %v", err)
 	}
 
-	ac := NewClient(conn)
+	ac := NewClientFromConn(conn)
 	return ac, socket, func() {
 		proc, _ := os.FindProcess(pid)
 		if proc != nil {
@@ -100,7 +100,7 @@ func startAgent(t *testing.T, agent Agent) (client *Client, cleanup func()) {
 	}
 	go ServeAgent(agent, c2)
 
-	return NewClient(c1), func() {
+	return NewClientFromConn(c1), func() {
 		c1.Close()
 		c2.Close()
 	}
@@ -123,6 +123,14 @@ func testKeyringAgent(t *testing.T, key interface{}, cert *ssh.Certificate, life
 	defer cleanup()
 
 	testAgentClient(t, agent, key, cert, lifetimeSecs)
+}
+
+func testClientAgent(t *testing.T, key interface{}, cert *ssh.Certificate, lifetimeSecs uint32) {
+	keyring := NewKeyring()
+	client := NewClientFromAgent(keyring)
+	defer client.Close()
+
+	testAgentClient(t, client, key, cert, lifetimeSecs)
 }
 
 func testAgentClient(t *testing.T, agent *Client, key interface{}, cert *ssh.Certificate, lifetimeSecs uint32) {
@@ -260,6 +268,7 @@ func TestAgent(t *testing.T) {
 	for _, keyType := range []string{"rsa", "ecdsa", "ed25519"} {
 		testOpenSSHAgent(t, testPrivateKeys[keyType], nil, 0)
 		testKeyringAgent(t, testPrivateKeys[keyType], nil, 0)
+		testClientAgent(t, testPrivateKeys[keyType], nil, 0)
 	}
 }
 
@@ -273,6 +282,7 @@ func TestCert(t *testing.T) {
 
 	testOpenSSHAgent(t, testPrivateKeys["rsa"], cert, 0)
 	testKeyringAgent(t, testPrivateKeys["rsa"], cert, 0)
+	testClientAgent(t, testPrivateKeys["rsa"], cert, 0)
 }
 
 // netListener creates a localhost network listener.
@@ -325,7 +335,7 @@ func TestServerResponseTooLarge(t *testing.T) {
 	response.NumKeys = 1
 	response.Keys = make([]byte, maxAgentResponseBytes+1)
 
-	agent := NewClient(a)
+	agent := NewClientFromConn(a)
 	go func() {
 		defer close(done)
 		n, err := b.Write(ssh.Marshal(response))
@@ -364,7 +374,7 @@ func TestInvalidResponses(t *testing.T) {
 	defer a.Close()
 	defer b.Close()
 
-	agent := NewClient(a)
+	agent := NewClientFromConn(a)
 	go func() {
 		defer close(done)
 
@@ -456,6 +466,14 @@ func TestLockKeyringAgent(t *testing.T) {
 	agent, cleanup := startKeyringAgent(t)
 	defer cleanup()
 	testLockAgent(agent, t)
+}
+
+func TestNewClientFromAgentLock(t *testing.T) {
+	keyring := NewKeyring()
+	client := NewClientFromAgent(keyring)
+	defer client.Close()
+
+	testLockAgent(client, t)
 }
 
 func testLockAgent(agent *Client, t *testing.T) {
@@ -593,5 +611,161 @@ func TestAgentExtensions(t *testing.T) {
 	_, err = agent.Extension("bad-extension@example.com", []byte{0x00, 0x01, 0x02})
 	if err == nil {
 		t.Fatal("should have gotten agent extension failure")
+	}
+}
+
+func TestNewClientFromAgentExtensions(t *testing.T) {
+	agent := &keyringExtended{Agent: NewKeyring()}
+	client := NewClientFromAgent(agent)
+	defer client.Close()
+
+	// Test supported extension
+	result, err := client.Extension("my-extension@example.com", []byte{0x00, 0x01, 0x02})
+	if err != nil {
+		t.Fatalf("Extension: %v", err)
+	}
+	expected := []byte{agentSuccess, 0x00, 0x01, 0x02}
+	if !bytes.Equal(result, expected) {
+		t.Fatalf("got %v, want %v", result, expected)
+	}
+
+	// Test unsupported extension
+	_, err = client.Extension("bad-extension@example.com", []byte{0x00})
+	if err == nil {
+		t.Fatal("expected error for unsupported extension")
+	}
+}
+
+func TestNewClientFromAgentConstraints(t *testing.T) {
+	keyring := NewKeyring()
+	client := NewClientFromAgent(keyring)
+
+	// Add a key with constraints
+	err := client.Add(InputKey{
+		PrivateKey:       testPrivateKeys["ed25519"],
+		Comment:          "constrained key",
+		ConfirmBeforeUse: true,
+		ConstraintExtensions: []ConstraintExtension{
+			{
+				ExtensionName:    "test@example.com",
+				ExtensionDetails: []byte("test data"),
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Add with constraints: %v", err)
+	}
+
+	// Verify the key was added
+	keys, err := client.List()
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(keys) != 1 {
+		t.Fatalf("got %d keys, want 1", len(keys))
+	}
+}
+
+func TestNewClientFromAgentSessionBind(t *testing.T) {
+	keyring := NewKeyring()
+	client := NewClientFromAgent(keyring)
+
+	hostKey := testPublicKeys["ecdsa"]
+	sessionID := []byte("test-session-id")
+
+	signer := testSigners["ecdsa"]
+	sig, err := signer.Sign(rand.Reader, sessionID)
+	if err != nil {
+		t.Fatalf("Sign: %v", err)
+	}
+
+	bindMsg := struct {
+		HostKeyBlob       []byte
+		SessionIdentifier []byte
+		Signature         []byte
+		IsForwarding      bool
+	}{
+		HostKeyBlob:       hostKey.Marshal(),
+		SessionIdentifier: sessionID,
+		Signature:         ssh.Marshal(sig),
+		IsForwarding:      true,
+	}
+
+	// Send session-bind extension the call must succeeded.
+	_, err = client.Extension("session-bind@openssh.com", ssh.Marshal(bindMsg))
+	if err != nil {
+		t.Fatalf("session-bind extension: %v", err)
+	}
+}
+
+// agentWithSessionTracking is a decorator around Agent that intercepts calls to
+// List and records the Session passed to the most recent invocation.
+type agentWithSessionTracking struct {
+	Agent
+	lastSession *Session
+}
+
+func (a *agentWithSessionTracking) List(ctx context.Context, session *Session) ([]*Key, error) {
+	a.lastSession = session
+	return a.Agent.List(ctx, session)
+}
+
+func TestNewClientFromAgentSessionTracking(t *testing.T) {
+	tracker := &agentWithSessionTracking{Agent: NewKeyring()}
+	client := NewClientFromAgent(tracker)
+	defer client.Close()
+
+	// Initially no session binds
+	if keys, err := client.List(); err != nil {
+		t.Fatalf("RequestIdentities: %v", err)
+	} else if len(keys) > 0 {
+		t.Fatalf("got %d keys, want 0: %v", len(keys), keys)
+	}
+
+	if tracker.lastSession == nil {
+		t.Fatal("session should not be nil")
+	}
+	if len(tracker.lastSession.Binds) != 0 {
+		t.Fatalf("got %d binds, want 0", len(tracker.lastSession.Binds))
+	}
+	if tracker.lastSession.BindsAttempted {
+		t.Fatal("BindsAttempted should be false initially")
+	}
+
+	hostKey := testPublicKeys["ecdsa"]
+	sessionID := []byte("test-session")
+	signer := testSigners["ecdsa"]
+	sig, _ := signer.Sign(rand.Reader, sessionID)
+
+	bindMsg := struct {
+		HostKeyBlob       []byte
+		SessionIdentifier []byte
+		Signature         []byte
+		IsForwarding      bool
+	}{
+		HostKeyBlob:       hostKey.Marshal(),
+		SessionIdentifier: sessionID,
+		Signature:         ssh.Marshal(sig),
+		IsForwarding:      true,
+	}
+
+	client.Extension("session-bind@openssh.com", ssh.Marshal(bindMsg))
+
+	if keys, err := client.List(); err != nil {
+		t.Fatalf("RequestIdentities: %v", err)
+	} else if len(keys) > 0 {
+		t.Fatalf("got %d keys, want 0: %v", len(keys), keys)
+	}
+	if tracker.lastSession == nil {
+		t.Fatal("session should not be nil")
+	}
+	if !tracker.lastSession.BindsAttempted {
+		t.Fatal("BindsAttempted should be true after extension")
+	}
+	if len(tracker.lastSession.Binds) != 1 {
+		t.Fatalf("got %d binds, want 1", len(tracker.lastSession.Binds))
+	}
+	if !bytes.Equal(tracker.lastSession.Binds[0].SessionID, sessionID) {
+		t.Fatal("session ID mismatch")
 	}
 }

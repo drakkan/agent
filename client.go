@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io"
 	"math/big"
+	"net"
 	"sync"
 
 	"golang.org/x/crypto/ssh"
@@ -240,15 +241,32 @@ func parseKey(in []byte) (out *Key, rest []byte, err error) {
 // Client is a client for an ssh-agent process.
 type Client struct {
 	// conn is typically a *net.UnixConn
-	conn io.ReadWriter
+	conn io.ReadWriteCloser
 	// mu is used to prevent concurrent access to the agent
 	mu sync.Mutex
 }
 
-// NewClient returns an Agent that talks to an ssh-agent process over
+// NewClientFromConn returns an Agent that talks to an ssh-agent process over
 // the given connection.
-func NewClient(rw io.ReadWriter) *Client {
+func NewClientFromConn(rw io.ReadWriteCloser) *Client {
 	return &Client{conn: rw}
+}
+
+// NewClientFromAgent returns a Client that communicates with the given Agent
+// implementation over an in-memory connection. This is useful for wrapping an
+// Agent implementation (such as one returned by [NewKeyring]) to use it through
+// the Client interface.
+//
+// The returned Client will support all features of the underlying Agent,
+// including extensions like "session-bind@openssh.com" and constraints like
+// "restrict-destination-v00@openssh.com".
+func NewClientFromAgent(agent Agent) *Client {
+	c1, c2 := net.Pipe()
+	go func() {
+		ServeAgent(agent, c2)
+		c2.Close()
+	}()
+	return NewClientFromConn(c1)
 }
 
 // call sends an RPC to the agent. On success, the reply is
@@ -396,6 +414,11 @@ func (c *Client) SignWithFlags(key ssh.PublicKey, data []byte, flags SignatureFl
 	default:
 		return nil, fmt.Errorf("agent: failed to sign challenge, unexpected message type %T", msg)
 	}
+}
+
+// Close closes the underlying connection
+func (c *Client) Close() error {
+	return c.conn.Close()
 }
 
 // unmarshal parses an agent message in packet, returning the parsed
