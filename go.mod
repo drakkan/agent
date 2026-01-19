@@ -1,4 +1,4 @@
-module golang.org/x/crypto/ssh/agent/v2
+module github.com/drakkan/agent
 
 go 1.25.6
 
