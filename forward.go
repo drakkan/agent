@@ -28,60 +28,7 @@ func RequestAgentForwarding(session *ssh.Session) error {
 	return nil
 }
 
-// ForwardToAgent routes authentication requests to the given keyring.
-//
-// If the keyring was created using [NewKeyring], this function automatically
-// utilizes the underlying [AgentV2] implementation, enabling support for
-// extended capabilities such as destination restrictions and session binding.
-func ForwardToAgent(client *ssh.Client, keyring Agent) error {
-	channels := client.HandleChannelOpen(authAgentChannelType)
-	if channels == nil {
-		return errors.New("agent: already have handler for " + authAgentChannelType)
-	}
-
-	go func() {
-		for ch := range channels {
-			channel, reqs, err := ch.Accept()
-			if err != nil {
-				continue
-			}
-			go ssh.DiscardRequests(reqs)
-			go func() {
-				ServeAgent(keyring, channel)
-				channel.Close()
-			}()
-		}
-	}()
-	return nil
-}
-
 const authAgentChannelType = "auth-agent@openssh.com"
-
-// ForwardToRemote routes authentication requests to the ssh-agent
-// process serving on the given unix socket.
-func ForwardToRemote(client *ssh.Client, addr string) error {
-	channels := client.HandleChannelOpen(authAgentChannelType)
-	if channels == nil {
-		return errors.New("agent: already have handler for " + authAgentChannelType)
-	}
-	conn, err := net.Dial("unix", addr)
-	if err != nil {
-		return err
-	}
-	conn.Close()
-
-	go func() {
-		for ch := range channels {
-			channel, reqs, err := ch.Accept()
-			if err != nil {
-				continue
-			}
-			go ssh.DiscardRequests(reqs)
-			go forwardUnixSocket(channel, addr)
-		}
-	}()
-	return nil
-}
 
 // FIXME: should we made this helper public???
 func forwardUnixSocket(channel ssh.Channel, addr string) {

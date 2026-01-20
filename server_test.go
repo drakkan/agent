@@ -67,9 +67,21 @@ func TestSetupForwardAgent(t *testing.T) {
 	}
 	client := ssh.NewClient(conn, chans, reqs)
 
-	if err := ForwardToRemote(client, socket); err != nil {
-		t.Fatalf("SetupForwardAgent: %v", err)
+	accept, err := SetupRemoteForwarding(client, socket)
+	if err != nil {
+		t.Fatalf("SetupRemoteForwarding: %v", err)
 	}
+	done := make(chan error, 1)
+	go func() {
+		channel, err := accept()
+		if err != nil {
+			done <- err
+			return
+		}
+		forwardUnixSocket(channel, socket)
+		done <- nil
+	}()
+
 	server := <-incoming
 	if server == nil {
 		t.Fatal("Unable to get server")
@@ -83,9 +95,12 @@ func TestSetupForwardAgent(t *testing.T) {
 	agentClient := NewClientFromConn(ch)
 	testAgentClient(t, agentClient, testPrivateKeys["rsa"], nil, 0)
 	conn.Close()
+	if err := <-done; err != nil {
+		t.Fatalf("remote forwarding error: %v", err)
+	}
 }
 
-func TestV1ProtocolMessages(t *testing.T) {
+func TestProtocolMessages(t *testing.T) {
 	c1, c2, err := netPipe()
 	if err != nil {
 		t.Fatalf("netPipe: %v", err)
@@ -96,10 +111,10 @@ func TestV1ProtocolMessages(t *testing.T) {
 
 	go ServeAgent(NewKeyring(), c2)
 
-	testV1ProtocolMessages(t, c)
+	testProtocolMessages(t, c)
 }
 
-func testV1ProtocolMessages(t *testing.T, c *Client) {
+func testProtocolMessages(t *testing.T, c *Client) {
 	reply, err := c.call([]byte{agentRequestV1Identities})
 	if err != nil {
 		t.Fatalf("v1 request all failed: %v", err)
