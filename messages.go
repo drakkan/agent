@@ -219,7 +219,7 @@ func (c *DestinationConstraint) unmarshal(data []byte) error {
 type HostIdentity struct {
 	Username string
 	Hostname string
-	HostKeys []KeySpec
+	HostKeys []HostIdentityKeySpec
 }
 
 func (h *HostIdentity) marshal() []byte {
@@ -265,7 +265,7 @@ func (h *HostIdentity) unmarshal(data []byte) error {
 	}
 
 	for len(data) > 0 {
-		var keyspec KeySpec
+		var keyspec HostIdentityKeySpec
 		var keyBlob []byte
 		keyBlob, data, ok = parseString(data)
 		if !ok {
@@ -288,9 +288,9 @@ func (h *HostIdentity) unmarshal(data []byte) error {
 	return nil
 }
 
-// KeySpec represents a specific key (and whether it is a CA) allowed for a host
-// in a destination constraint.
-type KeySpec struct {
+// HostIdentityKeySpec represents a specific key (and whether it is a CA)
+// allowed for a host in a destination constraint.
+type HostIdentityKeySpec struct {
 	Key ssh.PublicKey
 	CA  bool
 }

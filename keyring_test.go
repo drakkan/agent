@@ -191,7 +191,7 @@ func newConstraint() *constraintBuilder {
 func (cb *constraintBuilder) fromHost(hostname string, keys ...ssh.PublicKey) *constraintBuilder {
 	cb.from.Hostname = hostname
 	for _, key := range keys {
-		cb.from.HostKeys = append(cb.from.HostKeys, KeySpec{
+		cb.from.HostKeys = append(cb.from.HostKeys, HostIdentityKeySpec{
 			Key: key,
 			CA:  false,
 		})
@@ -202,7 +202,7 @@ func (cb *constraintBuilder) fromHost(hostname string, keys ...ssh.PublicKey) *c
 func (cb *constraintBuilder) fromCA(hostname string, cas ...ssh.PublicKey) *constraintBuilder {
 	cb.from.Hostname = hostname
 	for _, ca := range cas {
-		cb.from.HostKeys = append(cb.from.HostKeys, KeySpec{
+		cb.from.HostKeys = append(cb.from.HostKeys, HostIdentityKeySpec{
 			Key: ca,
 			CA:  true,
 		})
@@ -213,7 +213,7 @@ func (cb *constraintBuilder) fromCA(hostname string, cas ...ssh.PublicKey) *cons
 func (cb *constraintBuilder) toHost(hostname string, keys ...ssh.PublicKey) *constraintBuilder {
 	cb.to.Hostname = hostname
 	for _, key := range keys {
-		cb.to.HostKeys = append(cb.to.HostKeys, KeySpec{
+		cb.to.HostKeys = append(cb.to.HostKeys, HostIdentityKeySpec{
 			Key: key,
 			CA:  false,
 		})
@@ -224,7 +224,7 @@ func (cb *constraintBuilder) toHost(hostname string, keys ...ssh.PublicKey) *con
 func (cb *constraintBuilder) toCA(hostname string, cas ...ssh.PublicKey) *constraintBuilder {
 	cb.to.Hostname = hostname
 	for _, ca := range cas {
-		cb.to.HostKeys = append(cb.to.HostKeys, KeySpec{
+		cb.to.HostKeys = append(cb.to.HostKeys, HostIdentityKeySpec{
 			Key: ca,
 			CA:  true,
 		})
