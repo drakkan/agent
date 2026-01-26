@@ -981,7 +981,10 @@ func TestAgentConstraintsOperations(t *testing.T) {
 			toHost("dest.host", destHostKey).
 			build(),
 	}
-	extData := marshalRestrictExtension(constraints)
+	restrictedDestinations := RestrictDestinationConstraintExtension{
+		Constraints: constraints,
+	}
+	extData := restrictedDestinations.Marshal()
 
 	restrictedKey := InputKey{
 		PrivateKey: testPrivateKeys["rsa"],
@@ -1135,7 +1138,10 @@ func TestRemoveAllIgnoresConstraints(t *testing.T) {
 			build(),
 	}
 
-	extData := marshalRestrictExtension(constraints)
+	restrictedDestinations := RestrictDestinationConstraintExtension{
+		Constraints: constraints,
+	}
+	extData := restrictedDestinations.Marshal()
 
 	keyToAdd := InputKey{
 		PrivateKey: testPrivateKeys["rsa"],
@@ -1203,45 +1209,4 @@ func TestRemoveAllIgnoresConstraints(t *testing.T) {
 	if len(keys) != 0 {
 		t.Fatalf("Keyring should be empty after RemoveAll, got %d keys", len(keys))
 	}
-}
-
-// marshalRestrictExtension serializes a slice of DestinationConstraints into the wire format
-// expected by the "restrict-destination-v00@openssh.com" extension.
-// We cannot use ssh.Marshal directly because it does not support slices of structs natively.
-func marshalRestrictExtension(constraints []DestinationConstraint) []byte {
-	var buf bytes.Buffer
-
-	// Helper to marshal a HostIdentity (username, hostname, keys)
-	marshalIdentity := func(id HostIdentity) []byte {
-		var idBuf bytes.Buffer
-		// Username, Hostname, Reserved (empty string)
-		idBuf.Write(ssh.Marshal(struct{ U, H, R string }{id.Username, id.Hostname, ""}))
-
-		// HostKeys loop
-		for _, k := range id.HostKeys {
-			// KeyBlob (string/bytes), IsCA (bool)
-			idBuf.Write(ssh.Marshal(struct {
-				KeyBlob []byte
-				IsCA    bool
-			}{k.Key.Marshal(), k.CA}))
-		}
-		return idBuf.Bytes()
-	}
-
-	for _, c := range constraints {
-		fromBytes := marshalIdentity(c.From)
-		toBytes := marshalIdentity(c.To)
-
-		// Each constraint is encoded as: string(from_identity) + string(to_identity)
-		constraintBlob := ssh.Marshal(struct {
-			From []byte
-			To   []byte
-		}{fromBytes, toBytes})
-
-		// The extension body is a list of constraints, where each constraint
-		// is itself wrapped as an SSH string (nested string).
-		buf.Write(ssh.Marshal(struct{ C []byte }{constraintBlob}))
-	}
-
-	return buf.Bytes()
 }

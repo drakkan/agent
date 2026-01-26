@@ -616,6 +616,13 @@ func (c *Client) Add(key InputKey) error {
 		constraints = append(constraints, agentConstrainConfirm)
 	}
 
+	for _, ext := range key.ConstraintExtensions {
+		constraints = append(constraints, ssh.Marshal(constrainExtensionAgentMsg{
+			ExtensionName:    ext.ExtensionName,
+			ExtensionDetails: ext.ExtensionDetails,
+		})...)
+	}
+
 	cert := key.Certificate
 	if cert == nil {
 		return c.insertKey(key.PrivateKey, key.Comment, constraints)

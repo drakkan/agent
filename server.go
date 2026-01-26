@@ -38,7 +38,7 @@ const (
 // This interface defines the capabilities required to manage SSH identities,
 // process signing requests, and handle protocol extensions. All methods accept
 // a context.Context for cancellation and timeout management. Crucially, most
-// methods accept a *Session or *SignOptions, allowing the implementation to
+// methods accept a [Session] or [SignOptions], allowing the implementation to
 // enforce granular security policies.
 type Agent interface {
 	// List returns the identities known to the agent.

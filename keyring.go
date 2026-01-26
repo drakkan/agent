@@ -478,6 +478,9 @@ func (r *keyring) Add(ctx context.Context, key InputKey, session *Session) error
 
 	for _, ext := range key.ConstraintExtensions {
 		if ext.ExtensionName == RestrictDestinationExtensionName {
+			if len(p.restrictDestinations.Constraints) > 0 {
+				return fmt.Errorf("agent: extension %s already set", ext.ExtensionName)
+			}
 			if restrictions, err := ParseRestrictDestinationConstraintExtension(ext.ExtensionDetails); err == nil {
 				p.restrictDestinations = restrictions
 			}

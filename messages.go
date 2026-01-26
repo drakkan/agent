@@ -13,6 +13,22 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+func appendU32(buf []byte, v uint32) []byte {
+	return append(buf, byte(v>>24), byte(v>>16), byte(v>>8), byte(v))
+}
+
+func appendString(buf []byte, s string) []byte {
+	buf = appendU32(buf, uint32(len(s)))
+	buf = append(buf, s...)
+	return buf
+}
+
+func appendBytes(buf []byte, b []byte) []byte {
+	buf = appendU32(buf, uint32(len(b)))
+	buf = append(buf, b...)
+	return buf
+}
+
 func parseString(in []byte) (out, rest []byte, ok bool) {
 	if len(in) < 4 {
 		return
@@ -110,6 +126,16 @@ type RestrictDestinationConstraintExtension struct {
 	Constraints []DestinationConstraint
 }
 
+// Marshal serializes the restrict destination constraint extension  to SSH wire
+// format.
+func (e *RestrictDestinationConstraintExtension) Marshal() []byte {
+	var out []byte
+	for _, c := range e.Constraints {
+		out = appendBytes(out, c.marshal())
+	}
+	return out
+}
+
 // ParseRestrictDestinationConstraintExtension parses the constraints blob
 // associated with a key.
 func ParseRestrictDestinationConstraintExtension(data []byte) (RestrictDestinationConstraintExtension, error) {
@@ -141,6 +167,20 @@ func ParseRestrictDestinationConstraintExtension(data []byte) (RestrictDestinati
 type DestinationConstraint struct {
 	From HostIdentity
 	To   HostIdentity
+}
+
+func (c *DestinationConstraint) marshal() []byte {
+	var out []byte
+
+	fromBytes := c.From.marshal()
+	out = appendBytes(out, fromBytes)
+
+	toBytes := c.To.marshal()
+	out = appendBytes(out, toBytes)
+
+	out = appendString(out, "") // Reserved field
+
+	return out
 }
 
 func (c *DestinationConstraint) unmarshal(data []byte) error {
@@ -180,6 +220,29 @@ type HostIdentity struct {
 	Username string
 	Hostname string
 	HostKeys []KeySpec
+}
+
+func (h *HostIdentity) marshal() []byte {
+	var out []byte
+
+	out = appendString(out, h.Username)
+	out = appendString(out, h.Hostname)
+	out = appendString(out, "") // Reserved field
+
+	for _, ks := range h.HostKeys {
+		var keyBytes []byte
+		if ks.Key != nil {
+			keyBytes = ks.Key.Marshal()
+		}
+		out = appendBytes(out, keyBytes)
+
+		if ks.CA {
+			out = append(out, 1)
+		} else {
+			out = append(out, 0)
+		}
+	}
+	return out
 }
 
 func (h *HostIdentity) unmarshal(data []byte) error {
