@@ -148,7 +148,7 @@ func testAgentClient(t *testing.T, agent *Client, key interface{}, cert *ssh.Cer
 	// Attempt to insert the key, with certificate if specified.
 	var pubKey ssh.PublicKey
 	if cert != nil {
-		err = agent.Add(InputKey{
+		err = agent.Add(KeyEncoding{
 			PrivateKey:   key,
 			Certificate:  cert,
 			Comment:      "comment",
@@ -156,7 +156,7 @@ func testAgentClient(t *testing.T, agent *Client, key interface{}, cert *ssh.Cer
 		})
 		pubKey = cert
 	} else {
-		err = agent.Add(InputKey{PrivateKey: key, Comment: "comment", LifetimeSecs: lifetimeSecs})
+		err = agent.Add(KeyEncoding{PrivateKey: key, Comment: "comment", LifetimeSecs: lifetimeSecs})
 		pubKey = signer.PublicKey()
 	}
 	if err != nil {
@@ -422,7 +422,7 @@ func TestAuth(t *testing.T) {
 	defer a.Close()
 	defer b.Close()
 
-	if err := agent.Add(InputKey{PrivateKey: testPrivateKeys["rsa"], Comment: "comment"}); err != nil {
+	if err := agent.Add(KeyEncoding{PrivateKey: testPrivateKeys["rsa"], Comment: "comment"}); err != nil {
 		t.Errorf("Add: %v", err)
 	}
 
@@ -477,10 +477,10 @@ func TestNewClientFromAgentLock(t *testing.T) {
 }
 
 func testLockAgent(agent *Client, t *testing.T) {
-	if err := agent.Add(InputKey{PrivateKey: testPrivateKeys["rsa"], Comment: "comment 1"}); err != nil {
+	if err := agent.Add(KeyEncoding{PrivateKey: testPrivateKeys["rsa"], Comment: "comment 1"}); err != nil {
 		t.Errorf("Add: %v", err)
 	}
-	if err := agent.Add(InputKey{PrivateKey: testPrivateKeys["ecdsa"], Comment: "comment ecdsa"}); err != nil {
+	if err := agent.Add(KeyEncoding{PrivateKey: testPrivateKeys["ecdsa"], Comment: "comment ecdsa"}); err != nil {
 		t.Errorf("Add: %v", err)
 	}
 	if keys, err := agent.List(); err != nil {
@@ -546,7 +546,7 @@ func testKeyringAgentLifetime(t *testing.T) {
 func testAgentLifetime(t *testing.T, agent *Client) {
 	for _, keyType := range []string{"rsa", "dsa", "ecdsa"} {
 		// Add private keys to the agent.
-		err := agent.Add(InputKey{
+		err := agent.Add(KeyEncoding{
 			PrivateKey:   testPrivateKeys[keyType],
 			Comment:      "comment",
 			LifetimeSecs: 1,
@@ -561,7 +561,7 @@ func testAgentLifetime(t *testing.T, agent *Client) {
 			CertType:    ssh.UserCert,
 		}
 		cert.SignCert(rand.Reader, testSigners[keyType])
-		err = agent.Add(InputKey{
+		err = agent.Add(KeyEncoding{
 			PrivateKey:   testPrivateKeys[keyType],
 			Certificate:  cert,
 			Comment:      "comment",
@@ -641,7 +641,7 @@ func TestNewClientFromAgentConstraints(t *testing.T) {
 	client := NewClientFromAgent(keyring)
 
 	// Add a key with constraints
-	err := client.Add(InputKey{
+	err := client.Add(KeyEncoding{
 		PrivateKey:       testPrivateKeys["ed25519"],
 		Comment:          "constrained key",
 		ConfirmBeforeUse: true,

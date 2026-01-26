@@ -61,7 +61,7 @@ type Agent interface {
 	//
 	// If a session is provided, the agent verifies that the operation is
 	// permitted within the context of that session.
-	Add(ctx context.Context, key InputKey, session *Session) error
+	Add(ctx context.Context, key KeyEncoding, session *Session) error
 
 	// Remove removes all identities with the given public key.
 	//
@@ -371,7 +371,7 @@ func parseConstraints(constraints []byte) (lifetimeSecs uint32, confirmBeforeUse
 	return
 }
 
-func setConstraints(key *InputKey, constraintBytes []byte) error {
+func setConstraints(key *KeyEncoding, constraintBytes []byte) error {
 	lifetimeSecs, confirmBeforeUse, constraintExtensions, err := parseConstraints(constraintBytes)
 	if err != nil {
 		return err
@@ -383,7 +383,7 @@ func setConstraints(key *InputKey, constraintBytes []byte) error {
 	return nil
 }
 
-func parseRSAKey(req []byte) (*InputKey, error) {
+func parseRSAKey(req []byte) (*KeyEncoding, error) {
 	var k rsaKeyMsg
 	if err := ssh.Unmarshal(req, &k); err != nil {
 		return nil, err
@@ -401,28 +401,28 @@ func parseRSAKey(req []byte) (*InputKey, error) {
 	}
 	priv.Precompute()
 
-	inputKey := &InputKey{PrivateKey: priv, Comment: k.Comments}
-	if err := setConstraints(inputKey, k.Constraints); err != nil {
+	KeyEncoding := &KeyEncoding{PrivateKey: priv, Comment: k.Comments}
+	if err := setConstraints(KeyEncoding, k.Constraints); err != nil {
 		return nil, err
 	}
-	return inputKey, nil
+	return KeyEncoding, nil
 }
 
-func parseEd25519Key(req []byte) (*InputKey, error) {
+func parseEd25519Key(req []byte) (*KeyEncoding, error) {
 	var k ed25519KeyMsg
 	if err := ssh.Unmarshal(req, &k); err != nil {
 		return nil, err
 	}
 	priv := ed25519.PrivateKey(k.Priv)
 
-	inputKey := &InputKey{PrivateKey: &priv, Comment: k.Comments}
-	if err := setConstraints(inputKey, k.Constraints); err != nil {
+	KeyEncoding := &KeyEncoding{PrivateKey: &priv, Comment: k.Comments}
+	if err := setConstraints(KeyEncoding, k.Constraints); err != nil {
 		return nil, err
 	}
-	return inputKey, nil
+	return KeyEncoding, nil
 }
 
-func parseDSAKey(req []byte) (*InputKey, error) {
+func parseDSAKey(req []byte) (*KeyEncoding, error) {
 	var k dsaKeyMsg
 	if err := ssh.Unmarshal(req, &k); err != nil {
 		return nil, err
@@ -439,11 +439,11 @@ func parseDSAKey(req []byte) (*InputKey, error) {
 		X: k.X,
 	}
 
-	inputKey := &InputKey{PrivateKey: priv, Comment: k.Comments}
-	if err := setConstraints(inputKey, k.Constraints); err != nil {
+	KeyEncoding := &KeyEncoding{PrivateKey: priv, Comment: k.Comments}
+	if err := setConstraints(KeyEncoding, k.Constraints); err != nil {
 		return nil, err
 	}
-	return inputKey, nil
+	return KeyEncoding, nil
 }
 
 func unmarshalECDSA(curveName string, keyBytes []byte, privScalar *big.Int) (priv *ecdsa.PrivateKey, err error) {
@@ -470,7 +470,7 @@ func unmarshalECDSA(curveName string, keyBytes []byte, privScalar *big.Int) (pri
 	return priv, nil
 }
 
-func parseEd25519Cert(req []byte) (*InputKey, error) {
+func parseEd25519Cert(req []byte) (*KeyEncoding, error) {
 	var k ed25519CertMsg
 	if err := ssh.Unmarshal(req, &k); err != nil {
 		return nil, err
@@ -485,14 +485,14 @@ func parseEd25519Cert(req []byte) (*InputKey, error) {
 		return nil, errors.New("agent: bad ED25519 certificate")
 	}
 
-	inputKey := &InputKey{PrivateKey: &priv, Certificate: cert, Comment: k.Comments}
-	if err := setConstraints(inputKey, k.Constraints); err != nil {
+	KeyEncoding := &KeyEncoding{PrivateKey: &priv, Certificate: cert, Comment: k.Comments}
+	if err := setConstraints(KeyEncoding, k.Constraints); err != nil {
 		return nil, err
 	}
-	return inputKey, nil
+	return KeyEncoding, nil
 }
 
-func parseECDSAKey(req []byte) (*InputKey, error) {
+func parseECDSAKey(req []byte) (*KeyEncoding, error) {
 	var k ecdsaKeyMsg
 	if err := ssh.Unmarshal(req, &k); err != nil {
 		return nil, err
@@ -503,14 +503,14 @@ func parseECDSAKey(req []byte) (*InputKey, error) {
 		return nil, err
 	}
 
-	inputKey := &InputKey{PrivateKey: priv, Comment: k.Comments}
-	if err := setConstraints(inputKey, k.Constraints); err != nil {
+	KeyEncoding := &KeyEncoding{PrivateKey: priv, Comment: k.Comments}
+	if err := setConstraints(KeyEncoding, k.Constraints); err != nil {
 		return nil, err
 	}
-	return inputKey, nil
+	return KeyEncoding, nil
 }
 
-func parseRSACert(req []byte) (*InputKey, error) {
+func parseRSACert(req []byte) (*KeyEncoding, error) {
 	var k rsaCertMsg
 	if err := ssh.Unmarshal(req, &k); err != nil {
 		return nil, err
@@ -550,14 +550,14 @@ func parseRSACert(req []byte) (*InputKey, error) {
 	}
 	priv.Precompute()
 
-	inputKey := &InputKey{PrivateKey: &priv, Certificate: cert, Comment: k.Comments}
-	if err := setConstraints(inputKey, k.Constraints); err != nil {
+	KeyEncoding := &KeyEncoding{PrivateKey: &priv, Certificate: cert, Comment: k.Comments}
+	if err := setConstraints(KeyEncoding, k.Constraints); err != nil {
 		return nil, err
 	}
-	return inputKey, nil
+	return KeyEncoding, nil
 }
 
-func parseDSACert(req []byte) (*InputKey, error) {
+func parseDSACert(req []byte) (*KeyEncoding, error) {
 	var k dsaCertMsg
 	if err := ssh.Unmarshal(req, &k); err != nil {
 		return nil, err
@@ -592,14 +592,14 @@ func parseDSACert(req []byte) (*InputKey, error) {
 		X: k.X,
 	}
 
-	inputKey := &InputKey{PrivateKey: priv, Certificate: cert, Comment: k.Comments}
-	if err := setConstraints(inputKey, k.Constraints); err != nil {
+	KeyEncoding := &KeyEncoding{PrivateKey: priv, Certificate: cert, Comment: k.Comments}
+	if err := setConstraints(KeyEncoding, k.Constraints); err != nil {
 		return nil, err
 	}
-	return inputKey, nil
+	return KeyEncoding, nil
 }
 
-func parseECDSACert(req []byte) (*InputKey, error) {
+func parseECDSACert(req []byte) (*KeyEncoding, error) {
 	var k ecdsaCertMsg
 	if err := ssh.Unmarshal(req, &k); err != nil {
 		return nil, err
@@ -629,11 +629,11 @@ func parseECDSACert(req []byte) (*InputKey, error) {
 		return nil, err
 	}
 
-	inputKey := &InputKey{PrivateKey: priv, Certificate: cert, Comment: k.Comments}
-	if err := setConstraints(inputKey, k.Constraints); err != nil {
+	KeyEncoding := &KeyEncoding{PrivateKey: priv, Certificate: cert, Comment: k.Comments}
+	if err := setConstraints(KeyEncoding, k.Constraints); err != nil {
 		return nil, err
 	}
-	return inputKey, nil
+	return KeyEncoding, nil
 }
 
 func (s *server) insertIdentity(req []byte) error {
@@ -646,26 +646,26 @@ func (s *server) insertIdentity(req []byte) error {
 		return err
 	}
 
-	var inputKey *InputKey
+	var KeyEncoding *KeyEncoding
 	var err error
 
 	switch record.Type {
 	case ssh.KeyAlgoRSA:
-		inputKey, err = parseRSAKey(req)
+		KeyEncoding, err = parseRSAKey(req)
 	case ssh.InsecureKeyAlgoDSA:
-		inputKey, err = parseDSAKey(req)
+		KeyEncoding, err = parseDSAKey(req)
 	case ssh.KeyAlgoECDSA256, ssh.KeyAlgoECDSA384, ssh.KeyAlgoECDSA521:
-		inputKey, err = parseECDSAKey(req)
+		KeyEncoding, err = parseECDSAKey(req)
 	case ssh.KeyAlgoED25519:
-		inputKey, err = parseEd25519Key(req)
+		KeyEncoding, err = parseEd25519Key(req)
 	case ssh.CertAlgoRSAv01:
-		inputKey, err = parseRSACert(req)
+		KeyEncoding, err = parseRSACert(req)
 	case ssh.InsecureCertAlgoDSAv01:
-		inputKey, err = parseDSACert(req)
+		KeyEncoding, err = parseDSACert(req)
 	case ssh.CertAlgoECDSA256v01, ssh.CertAlgoECDSA384v01, ssh.CertAlgoECDSA521v01:
-		inputKey, err = parseECDSACert(req)
+		KeyEncoding, err = parseECDSACert(req)
 	case ssh.CertAlgoED25519v01:
-		inputKey, err = parseEd25519Cert(req)
+		KeyEncoding, err = parseEd25519Cert(req)
 	default:
 		return fmt.Errorf("agent: not implemented: %q", record.Type)
 	}
@@ -674,7 +674,7 @@ func (s *server) insertIdentity(req []byte) error {
 		return err
 	}
 
-	return s.agent.Add(context.Background(), *inputKey, s.Session())
+	return s.agent.Add(context.Background(), *KeyEncoding, s.Session())
 }
 
 // ServeAgent serves the Agent protocol on the given connection. It returns

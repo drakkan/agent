@@ -31,8 +31,8 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-// InputKey describes an SSH key to be added to an Agent.
-type InputKey struct {
+// KeyEncoding describes an SSH key to be added to an Agent.
+type KeyEncoding struct {
 	// PrivateKey must be a *rsa.PrivateKey, *dsa.PrivateKey,
 	// ed25519.PrivateKey or *ecdsa.PrivateKey, which will be inserted into the
 	// agent.
@@ -605,7 +605,7 @@ type ed25519CertMsg struct {
 
 // Add adds a private key to the agent. If a certificate is given,
 // that certificate is added instead as public key.
-func (c *Client) Add(key InputKey) error {
+func (c *Client) Add(key KeyEncoding) error {
 	var constraints []byte
 
 	if secs := key.LifetimeSecs; secs != 0 {

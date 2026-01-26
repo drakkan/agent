@@ -447,7 +447,7 @@ func (r *keyring) List(ctx context.Context, session *Session) ([]*Key, error) {
 // Insert adds a private key to the keyring. If a certificate
 // is given, that certificate is added as public key. Note that
 // any constraints given are ignored.
-func (r *keyring) Add(ctx context.Context, key InputKey, session *Session) error {
+func (r *keyring) Add(ctx context.Context, key KeyEncoding, session *Session) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.locked {

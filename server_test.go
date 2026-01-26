@@ -186,7 +186,7 @@ func verifyKey(sshAgent *Client) error {
 
 func addKeyToAgent(key crypto.PrivateKey) error {
 	sshAgent := NewKeyring()
-	if err := sshAgent.Add(context.Background(), InputKey{PrivateKey: key}, nil); err != nil {
+	if err := sshAgent.Add(context.Background(), KeyEncoding{PrivateKey: key}, nil); err != nil {
 		return fmt.Errorf("add: %v", err)
 	}
 	return verifyServerKey(sshAgent)
@@ -212,7 +212,7 @@ func addCertToAgentSock(key crypto.PrivateKey, cert *ssh.Certificate) error {
 	go ServeAgent(agentServer, a)
 
 	agentClient := NewClientFromConn(b)
-	if err := agentClient.Add(InputKey{PrivateKey: key, Certificate: cert}); err != nil {
+	if err := agentClient.Add(KeyEncoding{PrivateKey: key, Certificate: cert}); err != nil {
 		return fmt.Errorf("add: %v", err)
 	}
 	return verifyKey(agentClient)
@@ -220,7 +220,7 @@ func addCertToAgentSock(key crypto.PrivateKey, cert *ssh.Certificate) error {
 
 func addCertToAgent(key crypto.PrivateKey, cert *ssh.Certificate) error {
 	sshAgent := NewKeyring()
-	if err := sshAgent.Add(context.Background(), InputKey{PrivateKey: key, Certificate: cert}, nil); err != nil {
+	if err := sshAgent.Add(context.Background(), KeyEncoding{PrivateKey: key, Certificate: cert}, nil); err != nil {
 		return fmt.Errorf("add: %v", err)
 	}
 	return verifyServerKey(sshAgent)

@@ -14,7 +14,7 @@ import (
 )
 
 func addTestKey(t *testing.T, a Agent, keyName string, session *Session) {
-	err := a.Add(context.Background(), InputKey{
+	err := a.Add(context.Background(), KeyEncoding{
 		PrivateKey: testPrivateKeys[keyName],
 		Comment:    keyName,
 	}, session)
@@ -101,11 +101,11 @@ func TestAddDuplicateKey(t *testing.T) {
 	validateListedKeys(t, k, keyNames, nil)
 	// Add an existing key with an updated comment.
 	keyName := keyNames[0]
-	InputKey := InputKey{
+	KeyEncoding := KeyEncoding{
 		PrivateKey: testPrivateKeys[keyName],
 		Comment:    "comment updated",
 	}
-	err := k.Add(context.Background(), InputKey, nil)
+	err := k.Add(context.Background(), KeyEncoding, nil)
 	if err != nil {
 		t.Fatalf("failed to add key %q: %v", keyName, err)
 	}
@@ -119,7 +119,7 @@ func TestAddDuplicateKey(t *testing.T) {
 	}
 	isFound := false
 	for _, key := range keys {
-		if key.Comment == InputKey.Comment {
+		if key.Comment == KeyEncoding.Comment {
 			isFound = true
 		}
 	}
@@ -986,7 +986,7 @@ func TestAgentConstraintsOperations(t *testing.T) {
 	}
 	extData := restrictedDestinations.Marshal()
 
-	restrictedKey := InputKey{
+	restrictedKey := KeyEncoding{
 		PrivateKey: testPrivateKeys["rsa"],
 		Comment:    "restricted-rsa",
 		ConstraintExtensions: []ConstraintExtension{
@@ -997,7 +997,7 @@ func TestAgentConstraintsOperations(t *testing.T) {
 		},
 	}
 
-	unrestrictedKey := InputKey{
+	unrestrictedKey := KeyEncoding{
 		PrivateKey: testPrivateKeys["ed25519"],
 		Comment:    "unrestricted-ed25519",
 	}
@@ -1143,7 +1143,7 @@ func TestRemoveAllIgnoresConstraints(t *testing.T) {
 	}
 	extData := restrictedDestinations.Marshal()
 
-	keyToAdd := InputKey{
+	keyToAdd := KeyEncoding{
 		PrivateKey: testPrivateKeys["rsa"],
 		ConstraintExtensions: []ConstraintExtension{
 			{
