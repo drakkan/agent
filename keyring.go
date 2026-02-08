@@ -312,7 +312,11 @@ func matchPatternRecursive(s, pattern string, depth, maxDepth int) bool {
 	}
 }
 
-type keyring struct {
+// Keyring is an in-memory Agent implementation. It supports the "lifetime"
+// constraint and enforces the "restrict-destination-v00@openssh.com" extension
+// constraint. The "confirm" constraint and other extension constraints are not
+// supported. Keyring is safe for concurrent use by multiple goroutines.
+type Keyring struct {
 	mu   sync.Mutex
 	keys []privKey
 
@@ -329,11 +333,11 @@ var errLocked = errors.New("agent: locked")
 // "restrict-destination-v00@openssh.com" extension constraint. It does not
 // support the "confirm" constraint or other extension constraints.
 func NewKeyring() Agent {
-	return &keyring{}
+	return &Keyring{}
 }
 
 // RemoveAll removes all identities.
-func (r *keyring) RemoveAll(ctx context.Context, session *Session) error {
+func (r *Keyring) RemoveAll(ctx context.Context, session *Session) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.locked {
@@ -346,7 +350,7 @@ func (r *keyring) RemoveAll(ctx context.Context, session *Session) error {
 
 // removeLocked does the actual key removal. The caller must already be holding the
 // keyring mutex.
-func (r *keyring) removeLocked(want []byte, session *Session) error {
+func (r *Keyring) removeLocked(want []byte, session *Session) error {
 	found := false
 	for i := 0; i < len(r.keys); {
 		if bytes.Equal(r.keys[i].signer.PublicKey().Marshal(), want) {
@@ -371,7 +375,7 @@ func (r *keyring) removeLocked(want []byte, session *Session) error {
 }
 
 // Remove removes all identities with the given public key.
-func (r *keyring) Remove(ctx context.Context, key ssh.PublicKey, session *Session) error {
+func (r *Keyring) Remove(ctx context.Context, key ssh.PublicKey, session *Session) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.locked {
@@ -382,7 +386,7 @@ func (r *keyring) Remove(ctx context.Context, key ssh.PublicKey, session *Sessio
 }
 
 // Lock locks the agent. Sign and Remove will fail, and List will return an empty list.
-func (r *keyring) Lock(ctx context.Context, passphrase []byte, session *Session) error {
+func (r *Keyring) Lock(ctx context.Context, passphrase []byte, session *Session) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.locked {
@@ -395,7 +399,7 @@ func (r *keyring) Lock(ctx context.Context, passphrase []byte, session *Session)
 }
 
 // Unlock undoes the effect of Lock
-func (r *keyring) Unlock(ctx context.Context, passphrase []byte, session *Session) error {
+func (r *Keyring) Unlock(ctx context.Context, passphrase []byte, session *Session) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if !r.locked {
@@ -413,7 +417,7 @@ func (r *keyring) Unlock(ctx context.Context, passphrase []byte, session *Sessio
 // expireKeysLocked removes expired keys from the keyring. If a key was added
 // with a lifetimesecs constraint and seconds >= lifetimesecs seconds have
 // elapsed, it is removed. The caller *must* be holding the keyring mutex.
-func (r *keyring) expireKeysLocked() {
+func (r *Keyring) expireKeysLocked() {
 	for _, k := range r.keys {
 		if k.expire != nil && time.Now().After(*k.expire) {
 			r.removeLocked(k.signer.PublicKey().Marshal(), nil)
@@ -422,7 +426,7 @@ func (r *keyring) expireKeysLocked() {
 }
 
 // List returns the identities known to the agent.
-func (r *keyring) List(ctx context.Context, session *Session) ([]*Key, error) {
+func (r *Keyring) List(ctx context.Context, session *Session) ([]*Key, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.locked {
@@ -450,10 +454,10 @@ func (r *keyring) List(ctx context.Context, session *Session) ([]*Key, error) {
 // Add adds a private key to the keyring. If a certificate is given, that
 // certificate is added as public key.
 //
-// Note: This keyring implementation supports the "lifetime" constraint and the
-// "restrict-destination-v00@openssh.com" extension constraint. It does not
-// support the "confirm" constraint or any other extension constraints.
-func (r *keyring) Add(ctx context.Context, key KeyEncoding, session *Session) error {
+// The "lifetime" constraint and the "restrict-destination-v00@openssh.com"
+// extension constraint are supported. The "confirm" constraint and all other
+// extension constraints are not supported.
+func (r *Keyring) Add(ctx context.Context, key KeyEncoding, session *Session) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.locked {
@@ -520,7 +524,7 @@ func (r *keyring) Add(ctx context.Context, key KeyEncoding, session *Session) er
 }
 
 // Sign returns a signature for the data.
-func (r *keyring) Sign(ctx context.Context, key ssh.PublicKey, data []byte, options *SignOptions) (*ssh.Signature, error) {
+func (r *Keyring) Sign(ctx context.Context, key ssh.PublicKey, data []byte, options *SignOptions) (*ssh.Signature, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.locked {
@@ -565,6 +569,6 @@ func (r *keyring) Sign(ctx context.Context, key ssh.PublicKey, data []byte, opti
 }
 
 // The keyring does not support any extensions
-func (r *keyring) Extension(ctx context.Context, extensionType string, contents []byte, session *Session) ([]byte, error) {
+func (r *Keyring) Extension(ctx context.Context, extensionType string, contents []byte, session *Session) ([]byte, error) {
 	return nil, ErrExtensionUnsupported
 }
