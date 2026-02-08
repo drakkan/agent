@@ -636,36 +636,6 @@ func TestNewClientFromAgentExtensions(t *testing.T) {
 	}
 }
 
-func TestNewClientFromAgentConstraints(t *testing.T) {
-	keyring := NewKeyring()
-	client := NewClientFromAgent(keyring)
-
-	// Add a key with constraints
-	err := client.Add(KeyEncoding{
-		PrivateKey:       testPrivateKeys["ed25519"],
-		Comment:          "constrained key",
-		ConfirmBeforeUse: true,
-		ConstraintExtensions: []ConstraintExtension{
-			{
-				ExtensionName:    "test@example.com",
-				ExtensionDetails: []byte("test data"),
-			},
-		},
-	})
-	if err != nil {
-		t.Fatalf("Add with constraints: %v", err)
-	}
-
-	// Verify the key was added
-	keys, err := client.List()
-	if err != nil {
-		t.Fatalf("List: %v", err)
-	}
-	if len(keys) != 1 {
-		t.Fatalf("got %d keys, want 1", len(keys))
-	}
-}
-
 func TestNewClientFromAgentSessionBind(t *testing.T) {
 	keyring := NewKeyring()
 	client := NewClientFromAgent(keyring)

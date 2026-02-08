@@ -128,6 +128,45 @@ func TestAddDuplicateKey(t *testing.T) {
 	}
 }
 
+func TestAddKeyWithConstraints(t *testing.T) {
+	// Verifies that the client sends constraint extensions
+	// and the server refuses unknown constraints that cannot be enforced.
+	agent, cleanup := startKeyringAgent(t)
+	defer cleanup()
+
+	constraints := []ConstraintExtension{
+		{
+			ExtensionName:    "extension1",
+			ExtensionDetails: []byte("details1"),
+		},
+	}
+
+	key := testPrivateKeys["rsa"]
+
+	err := agent.Add(KeyEncoding{
+		PrivateKey:           key,
+		ConstraintExtensions: constraints,
+	})
+	if err == nil {
+		t.Fatal("adding a key with unsupported constraints succeeded")
+	}
+}
+
+func TestAddKeyWithConfirmBeforeUse(t *testing.T) {
+	agent, cleanup := startKeyringAgent(t)
+	defer cleanup()
+
+	key := testPrivateKeys["rsa"]
+
+	err := agent.Add(KeyEncoding{
+		PrivateKey:       key,
+		ConfirmBeforeUse: true,
+	})
+	if err == nil {
+		t.Fatal("adding a key with confirm before use constraint succeeded")
+	}
+}
+
 func TestMatchPatters(t *testing.T) {
 	type testCase struct {
 		value    string

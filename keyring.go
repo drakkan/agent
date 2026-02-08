@@ -320,11 +320,12 @@ type keyring struct {
 
 var errLocked = errors.New("agent: locked")
 
-// NewKeyringV2 returns a new in-memory Agent implementation. It is safe for
+// NewKeyring returns a new in-memory Agent implementation. It is safe for
 // concurrent use by multiple goroutines.
 //
-// It supports "restrict-destination-v00@openssh.com" constraints and enforces
-// them based on the Session information provided during calls.
+// The returned Agent supports the "lifetime" constraint and enforces the
+// "restrict-destination-v00@openssh.com" extension constraint. It does not
+// support the "confirm" constraint or other extension constraints.
 func NewKeyring() Agent {
 	return &keyring{}
 }
@@ -444,9 +445,12 @@ func (r *keyring) List(ctx context.Context, session *Session) ([]*Key, error) {
 	return ids, nil
 }
 
-// Insert adds a private key to the keyring. If a certificate
-// is given, that certificate is added as public key. Note that
-// any constraints given are ignored.
+// Add adds a private key to the keyring. If a certificate is given, that
+// certificate is added as public key.
+//
+// Note: This keyring implementation supports the "lifetime" constraint and the
+// "restrict-destination-v00@openssh.com" extension constraint. It does not
+// support the "confirm" constraint or any other extension constraints.
 func (r *keyring) Add(ctx context.Context, key KeyEncoding, session *Session) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -476,14 +480,21 @@ func (r *keyring) Add(ctx context.Context, key KeyEncoding, session *Session) er
 		p.expire = &t
 	}
 
+	if key.ConfirmBeforeUse {
+		return errors.New("agent: confirm before use constraint is not supported")
+	}
+
 	for _, ext := range key.ConstraintExtensions {
-		if ext.ExtensionName == RestrictDestinationExtensionName {
+		switch ext.ExtensionName {
+		case RestrictDestinationExtensionName:
 			if len(p.restrictDestinations.Constraints) > 0 {
 				return fmt.Errorf("agent: extension %s already set", ext.ExtensionName)
 			}
 			if restrictions, err := ParseRestrictDestinationConstraintExtension(ext.ExtensionDetails); err == nil {
 				p.restrictDestinations = restrictions
 			}
+		default:
+			return fmt.Errorf("agent: extension constraint %q is not supported", ext.ExtensionName)
 		}
 	}
 
