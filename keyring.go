@@ -210,22 +210,24 @@ func (k *privKey) permittedByDestConstraints(fromKey, toKey ssh.PublicKey, usern
 
 func matchKeyHop(key ssh.PublicKey, identity HostIdentity) bool {
 	for _, ks := range identity.HostKeys {
-		if _, ok := key.(*ssh.Certificate); ok {
-			if !ks.CA {
-				continue
-			}
-			checker := &ssh.CertChecker{
-				IsHostAuthority: func(p ssh.PublicKey, _ string) bool {
-					return bytes.Equal(ks.Key.Marshal(), p.Marshal())
-				},
-			}
-			if err := checker.CheckHostKey(normalizeHost(identity.Hostname), nil, key); err != nil {
-				if debugAgent {
-					log.Printf("CheckHostKey failed for host %s: %v", identity.Hostname, err)
+		if cert, ok := key.(*ssh.Certificate); ok {
+			if ks.CA {
+				checker := &ssh.CertChecker{
+					IsHostAuthority: func(p ssh.PublicKey, _ string) bool {
+						return bytes.Equal(ks.Key.Marshal(), p.Marshal())
+					},
 				}
-				continue
+				if err := checker.CheckHostKey(normalizeHost(identity.Hostname), nil, key); err != nil {
+					if debugAgent {
+						log.Printf("CheckHostKey failed for host %s: %v", identity.Hostname, err)
+					}
+					continue
+				}
+				return true
 			}
-			return true
+			if bytes.Equal(cert.Key.Marshal(), ks.Key.Marshal()) {
+				return true
+			}
 		} else {
 			if ks.CA || !bytes.Equal(key.Marshal(), ks.Key.Marshal()) {
 				continue

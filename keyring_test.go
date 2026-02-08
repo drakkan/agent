@@ -782,6 +782,19 @@ func TestKeyringIsKeyPermitted(t *testing.T) {
 			wantErr:     true,
 			errContains: "refused by destination constraint",
 		},
+		{
+			name: "certificate host key - underlying key matches plain constraint (success)",
+			constraints: []DestinationConstraint{
+				newConstraint().
+					toHost("gopher1", testPublicKeys["ecdsa"]).
+					build(),
+			},
+			session: newSession().
+				addBind(certSigner, []byte("session1"), false).
+				build(),
+			username: stringPtr("user1"),
+			wantErr:  false,
+		},
 	}
 
 	for _, tt := range tests {
