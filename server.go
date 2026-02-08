@@ -154,7 +154,7 @@ func (s *server) processRequestBytes(reqData []byte) []byte {
 		return []byte{agentFailure}
 	}
 
-	if err == nil && rep == nil {
+	if rep == nil {
 		return []byte{agentSuccess}
 	}
 
