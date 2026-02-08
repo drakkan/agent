@@ -312,8 +312,8 @@ func matchPatternRecursive(s, pattern string, depth, maxDepth int) bool {
 	}
 }
 
-// Keyring is an in-memory Agent implementation. It supports the "lifetime"
-// constraint and enforces the "restrict-destination-v00@openssh.com" extension
+// Keyring is an in-memory Agent implementation. It supports the "lifetime" key
+// constraint and enforces the "restrict-destination-v00@openssh.com" key extension
 // constraint. The "confirm" constraint and other extension constraints are not
 // supported. Keyring is safe for concurrent use by multiple goroutines.
 type Keyring struct {
@@ -326,12 +326,7 @@ type Keyring struct {
 
 var errLocked = errors.New("agent: locked")
 
-// NewKeyring returns a new in-memory Agent implementation. It is safe for
-// concurrent use by multiple goroutines.
-//
-// The returned Agent supports the "lifetime" constraint and enforces the
-// "restrict-destination-v00@openssh.com" extension constraint. It does not
-// support the "confirm" constraint or other extension constraints.
+// NewKeyring returns a [Keyring] Agent implementation.
 func NewKeyring() Agent {
 	return &Keyring{}
 }
@@ -375,7 +370,7 @@ func (r *Keyring) removeLocked(want []byte, session *Session) error {
 }
 
 // Remove removes all identities with the given public key.
-func (r *Keyring) Remove(ctx context.Context, key ssh.PublicKey, session *Session) error {
+func (r *Keyring) Remove(ctx context.Context, session *Session, key ssh.PublicKey) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.locked {
@@ -386,7 +381,7 @@ func (r *Keyring) Remove(ctx context.Context, key ssh.PublicKey, session *Sessio
 }
 
 // Lock locks the agent. Sign and Remove will fail, and List will return an empty list.
-func (r *Keyring) Lock(ctx context.Context, passphrase []byte, session *Session) error {
+func (r *Keyring) Lock(ctx context.Context, session *Session, passphrase []byte) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.locked {
@@ -399,7 +394,7 @@ func (r *Keyring) Lock(ctx context.Context, passphrase []byte, session *Session)
 }
 
 // Unlock undoes the effect of Lock
-func (r *Keyring) Unlock(ctx context.Context, passphrase []byte, session *Session) error {
+func (r *Keyring) Unlock(ctx context.Context, session *Session, passphrase []byte) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if !r.locked {
@@ -457,7 +452,7 @@ func (r *Keyring) List(ctx context.Context, session *Session) ([]*Key, error) {
 // The "lifetime" constraint and the "restrict-destination-v00@openssh.com"
 // extension constraint are supported. The "confirm" constraint and all other
 // extension constraints are not supported.
-func (r *Keyring) Add(ctx context.Context, key KeyEncoding, session *Session) error {
+func (r *Keyring) Add(ctx context.Context, session *Session, key KeyEncoding) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.locked {
@@ -569,6 +564,6 @@ func (r *Keyring) Sign(ctx context.Context, session *Session, key ssh.PublicKey,
 }
 
 // The keyring does not support any extensions
-func (r *Keyring) Extension(ctx context.Context, extensionType string, contents []byte, session *Session) ([]byte, error) {
+func (r *Keyring) Extension(ctx context.Context, session *Session, extensionType string, contents []byte) ([]byte, error) {
 	return nil, ErrExtensionUnsupported
 }

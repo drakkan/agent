@@ -583,7 +583,7 @@ type keyringExtended struct {
 	Agent
 }
 
-func (r *keyringExtended) Extension(ctx context.Context, extensionType string, contents []byte, session *Session) ([]byte, error) {
+func (r *keyringExtended) Extension(ctx context.Context, session *Session, extensionType string, contents []byte) ([]byte, error) {
 	if extensionType != "my-extension@example.com" {
 		return []byte{agentExtensionFailure}, nil
 	}

@@ -92,10 +92,10 @@ func TestSetupAgentForwarding(t *testing.T) {
 		t.Fatalf("SetupAgentForwarding: %v", err)
 	}
 
-	err = agent.Add(context.Background(), KeyEncoding{
+	err = agent.Add(context.Background(), nil, KeyEncoding{
 		PrivateKey: testPrivateKeys["rsa"],
 		Comment:    "test key",
-	}, nil)
+	})
 	if err != nil {
 		t.Fatalf("Add: %v", err)
 	}
@@ -163,10 +163,10 @@ func TestSetupAgentForwardingMultipleConnections(t *testing.T) {
 		t.Fatalf("SetupAgentForwarding: %v", err)
 	}
 
-	agent.Add(context.Background(), KeyEncoding{
+	agent.Add(context.Background(), nil, KeyEncoding{
 		PrivateKey: testPrivateKeys["rsa"],
 		Comment:    "test key",
-	}, nil)
+	})
 
 	var wg sync.WaitGroup
 	numConnections := 5
@@ -252,10 +252,10 @@ func TestSetupRemoteForwarding(t *testing.T) {
 	defer listener.Close()
 
 	agent := NewKeyring()
-	agent.Add(context.Background(), KeyEncoding{
+	agent.Add(context.Background(), nil, KeyEncoding{
 		PrivateKey: testPrivateKeys["ecdsa"],
 		Comment:    "remote key",
-	}, nil)
+	})
 
 	go func() {
 		for {

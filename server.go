@@ -61,23 +61,23 @@ type Agent interface {
 	//
 	// If a session is provided, the agent verifies that the operation is
 	// permitted within the context of that session.
-	Add(ctx context.Context, key KeyEncoding, session *Session) error
+	Add(ctx context.Context, session *Session, key KeyEncoding) error
 
 	// Remove removes all identities with the given public key.
 	//
 	// If a session is provided, the agent may refuse to remove a key if the
 	// session constraints do not allow visibility of that key (preventing
 	// oracle attacks).
-	Remove(ctx context.Context, key ssh.PublicKey, session *Session) error
+	Remove(ctx context.Context, session *Session, key ssh.PublicKey) error
 
 	// RemoveAll removes all identities.
 	RemoveAll(ctx context.Context, session *Session) error
 
 	// Lock locks the agent. Sign and Remove will fail, and List will empty an empty list.
-	Lock(ctx context.Context, passphrase []byte, session *Session) error
+	Lock(ctx context.Context, session *Session, passphrase []byte) error
 
 	// Unlock undoes the effect of Lock
-	Unlock(ctx context.Context, passphrase []byte, session *Session) error
+	Unlock(ctx context.Context, session *Session, passphrase []byte) error
 
 	// Extension processes a custom extension request. Standard-compliant agents
 	// are not required to support any extensions, but this method allows agents
@@ -97,7 +97,7 @@ type Agent interface {
 	// the contents of the response are unspecified (including the type of the
 	// message), the complete response will be returned as a []byte slice,
 	// including the "type" byte of the message.
-	Extension(ctx context.Context, extensionType string, contents []byte, session *Session) ([]byte, error)
+	Extension(ctx context.Context, session *Session, extensionType string, contents []byte) ([]byte, error)
 }
 
 // SignOptions contains additional parameters for the Sign operation.
@@ -208,7 +208,7 @@ func (s *server) processRequest(data []byte) (interface{}, error) {
 			return nil, err
 		}
 		k := &Key{Format: wk.Format, Blob: req.KeyBlob}
-		return nil, s.agent.Remove(context.Background(), k, s.Session())
+		return nil, s.agent.Remove(context.Background(), s.Session(), k)
 
 	case agentRemoveAllIdentities:
 		return nil, s.agent.RemoveAll(context.Background(), s.Session())
@@ -219,14 +219,14 @@ func (s *server) processRequest(data []byte) (interface{}, error) {
 			return nil, err
 		}
 
-		return nil, s.agent.Lock(context.Background(), req.Passphrase, s.Session())
+		return nil, s.agent.Lock(context.Background(), s.Session(), req.Passphrase)
 
 	case agentUnlock:
 		var req agentUnlockMsg
 		if err := ssh.Unmarshal(data, &req); err != nil {
 			return nil, err
 		}
-		return nil, s.agent.Unlock(context.Background(), req.Passphrase, s.Session())
+		return nil, s.agent.Unlock(context.Background(), s.Session(), req.Passphrase)
 
 	case agentSignRequest:
 		var req signRequestAgentMsg
@@ -314,7 +314,7 @@ func (s *server) processRequest(data []byte) (interface{}, error) {
 			}
 		}
 
-		res, err := s.agent.Extension(context.Background(), req.ExtensionType, req.Contents, s.Session())
+		res, err := s.agent.Extension(context.Background(), s.Session(), req.ExtensionType, req.Contents)
 		if err != nil {
 			// If agent extensions are unsupported, return a standard SSH_AGENT_FAILURE
 			// message as required by [PROTOCOL.agent] section 4.7.
@@ -671,7 +671,7 @@ func (s *server) insertIdentity(req []byte) error {
 		return err
 	}
 
-	return s.agent.Add(context.Background(), *KeyEncoding, s.Session())
+	return s.agent.Add(context.Background(), s.Session(), *KeyEncoding)
 }
 
 // ServeAgent serves the Agent protocol on the given connection. It returns

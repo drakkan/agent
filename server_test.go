@@ -186,7 +186,7 @@ func verifyKey(sshAgent *Client) error {
 
 func addKeyToAgent(key crypto.PrivateKey) error {
 	sshAgent := NewKeyring()
-	if err := sshAgent.Add(context.Background(), KeyEncoding{PrivateKey: key}, nil); err != nil {
+	if err := sshAgent.Add(context.Background(), nil, KeyEncoding{PrivateKey: key}); err != nil {
 		return fmt.Errorf("add: %v", err)
 	}
 	return verifyServerKey(sshAgent)
@@ -220,7 +220,7 @@ func addCertToAgentSock(key crypto.PrivateKey, cert *ssh.Certificate) error {
 
 func addCertToAgent(key crypto.PrivateKey, cert *ssh.Certificate) error {
 	sshAgent := NewKeyring()
-	if err := sshAgent.Add(context.Background(), KeyEncoding{PrivateKey: key, Certificate: cert}, nil); err != nil {
+	if err := sshAgent.Add(context.Background(), nil, KeyEncoding{PrivateKey: key, Certificate: cert}); err != nil {
 		return fmt.Errorf("add: %v", err)
 	}
 	return verifyServerKey(sshAgent)

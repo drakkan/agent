@@ -14,17 +14,17 @@ import (
 )
 
 func addTestKey(t *testing.T, a Agent, keyName string, session *Session) {
-	err := a.Add(context.Background(), KeyEncoding{
+	err := a.Add(context.Background(), nil, KeyEncoding{
 		PrivateKey: testPrivateKeys[keyName],
 		Comment:    keyName,
-	}, session)
+	})
 	if err != nil {
 		t.Fatalf("failed to add key %q: %v", keyName, err)
 	}
 }
 
 func removeTestKey(t *testing.T, a Agent, keyName string, session *Session) {
-	err := a.Remove(context.Background(), testPublicKeys[keyName], session)
+	err := a.Remove(context.Background(), session, testPublicKeys[keyName])
 	if err != nil {
 		t.Fatalf("failed to remove key %q: %v", keyName, err)
 	}
@@ -105,7 +105,7 @@ func TestAddDuplicateKey(t *testing.T) {
 		PrivateKey: testPrivateKeys[keyName],
 		Comment:    "comment updated",
 	}
-	err := k.Add(context.Background(), KeyEncoding, nil)
+	err := k.Add(context.Background(), nil, KeyEncoding)
 	if err != nil {
 		t.Fatalf("failed to add key %q: %v", keyName, err)
 	}
@@ -1042,10 +1042,10 @@ func TestAgentConstraintsOperations(t *testing.T) {
 	}
 
 	t.Run("Add", func(t *testing.T) {
-		if err := k.Add(context.Background(), restrictedKey, nil); err != nil {
+		if err := k.Add(context.Background(), nil, restrictedKey); err != nil {
 			t.Fatalf("Add (restricted) failed: %v", err)
 		}
-		if err := k.Add(context.Background(), unrestrictedKey, nil); err != nil {
+		if err := k.Add(context.Background(), nil, unrestrictedKey); err != nil {
 			t.Fatalf("Add (unrestricted) failed: %v", err)
 		}
 	})
@@ -1139,7 +1139,7 @@ func TestAgentConstraintsOperations(t *testing.T) {
 	})
 
 	t.Run("Remove", func(t *testing.T) {
-		err := k.Remove(context.Background(), testPublicKeys["rsa"], validSession)
+		err := k.Remove(context.Background(), validSession, testPublicKeys["rsa"])
 		if err != nil {
 			t.Fatalf("Remove restricted key (valid session) failed: %v", err)
 		}
@@ -1151,7 +1151,7 @@ func TestAgentConstraintsOperations(t *testing.T) {
 			}
 		}
 
-		err = k.Remove(context.Background(), testPublicKeys["ed25519"], validSession)
+		err = k.Remove(context.Background(), validSession, testPublicKeys["ed25519"])
 		if err != nil {
 			t.Fatalf("Remove unrestricted key failed: %v", err)
 		}
@@ -1191,7 +1191,7 @@ func TestRemoveAllIgnoresConstraints(t *testing.T) {
 		},
 	}
 
-	if err := k.Add(context.Background(), keyToAdd, nil); err != nil {
+	if err := k.Add(context.Background(), nil, keyToAdd); err != nil {
 		t.Fatalf("Add failed: %v", err)
 	}
 
@@ -1231,7 +1231,7 @@ func TestRemoveAllIgnoresConstraints(t *testing.T) {
 		t.Fatalf("Expected 0 keys visible for restricted session, got %d", len(keys))
 	}
 
-	err = k.Remove(context.Background(), testPublicKeys["rsa"], invalidSession)
+	err = k.Remove(context.Background(), invalidSession, testPublicKeys["rsa"])
 	if err == nil {
 		t.Fatal("Remove (single) should have failed due to unmet constraints, but succeeded")
 	}
