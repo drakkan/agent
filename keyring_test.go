@@ -810,6 +810,31 @@ func TestKeyringIsKeyPermitted(t *testing.T) {
 
 func TestKeyringCheckForSigning(t *testing.T) {
 	sessionID := []byte("test-session-id-12345")
+	// Helper to create a custom/malformed packet for testing specific fields
+	createCustomAuthRequest := func(service, algo string, clientKey, hostKey ssh.PublicKey) []byte {
+		msg := struct {
+			SessionID []byte
+			Type      byte
+			User      string
+			Service   string
+			Method    string
+			IsQuery   byte
+			Algorithm string
+			PubKey    []byte
+			HostKey   []byte
+		}{
+			SessionID: sessionID,
+			Type:      50,
+			User:      "user1",
+			Service:   service,
+			Method:    "publickey-hostbound-v00@openssh.com",
+			IsQuery:   1,
+			Algorithm: algo,
+			PubKey:    clientKey.Marshal(),
+			HostKey:   hostKey.Marshal(),
+		}
+		return ssh.Marshal(msg)
+	}
 
 	tests := []struct {
 		name        string
@@ -917,6 +942,66 @@ func TestKeyringCheckForSigning(t *testing.T) {
 			wantErr:     true,
 			errContains: "refusing use of destination-constrained key to sign an unidentified signature",
 		},
+		{
+			name:      "invalid service name",
+			keySigner: testSigners["rsa"],
+			constraints: []DestinationConstraint{
+				newConstraint().
+					toHost("host1.example.com", testPublicKeys["ecdsa"]).
+					build(),
+			},
+			session: newSession().
+				addBind(testSigners["ecdsa"], sessionID, false).
+				build(),
+			authData: createCustomAuthRequest(
+				"ssh-userauth", // should be ssh-connection
+				testPublicKeys["rsa"].Type(),
+				testPublicKeys["rsa"],
+				testPublicKeys["ecdsa"],
+			),
+			wantErr:     true,
+			errContains: "refusing use of destination-constrained key to sign an unidentified signature",
+		},
+		{
+			name:      "public key mismatch",
+			keySigner: testSigners["rsa"],
+			constraints: []DestinationConstraint{
+				newConstraint().
+					toHost("host1.example.com", testPublicKeys["ecdsa"]).
+					build(),
+			},
+			session: newSession().
+				addBind(testSigners["ecdsa"], sessionID, false).
+				build(),
+			authData: createCustomAuthRequest(
+				"ssh-connection",
+				testPublicKeys["rsa"].Type(),
+				testPublicKeys["ecdsa"],
+				testPublicKeys["ecdsa"],
+			),
+			wantErr:     true,
+			errContains: "refusing use of destination-constrained key: public key mismatch",
+		},
+		{
+			name:      "algorithm mismatch",
+			keySigner: testSigners["rsa"],
+			constraints: []DestinationConstraint{
+				newConstraint().
+					toHost("host1.example.com", testPublicKeys["ecdsa"]).
+					build(),
+			},
+			session: newSession().
+				addBind(testSigners["ecdsa"], sessionID, false).
+				build(),
+			authData: createCustomAuthRequest(
+				"ssh-connection",
+				"ssh-ed25519", // Mismatch: Wrong algorithm for RSA key
+				testPublicKeys["rsa"],
+				testPublicKeys["ecdsa"],
+			),
+			wantErr:     true,
+			errContains: "refusing use of destination-constrained key: algorithm mismatch",
+		},
 	}
 
 	for _, tt := range tests {
@@ -928,14 +1013,14 @@ func TestKeyringCheckForSigning(t *testing.T) {
 				},
 			}
 
-			err := k.checkForSigning(tt.authData, tt.session)
+			err := k.checkForSigning(tt.authData, tt.session, tt.keySigner.PublicKey())
 			if (err != nil) != tt.wantErr {
-				t.Errorf("checkForSigning() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("checkForSigning() error: %v, wantErr: %v", err, tt.wantErr)
 				return
 			}
 			if err != nil && tt.errContains != "" {
 				if !bytes.Contains([]byte(err.Error()), []byte(tt.errContains)) {
-					t.Errorf("checkForSigning() error = %v, should contain %q", err, tt.errContains)
+					t.Errorf("checkForSigning() error: %v, should contain %q", err, tt.errContains)
 				}
 			}
 		})

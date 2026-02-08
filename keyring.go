@@ -97,7 +97,7 @@ func (k *privKey) isPermitted(username *string, session *Session) error {
 	return nil
 }
 
-func (k *privKey) checkForSigning(data []byte, session *Session) error {
+func (k *privKey) checkForSigning(data []byte, session *Session, key ssh.PublicKey) error {
 	if debugAgent {
 		log.Printf("key constraints %d", len(k.restrictDestinations.Constraints))
 	}
@@ -121,6 +121,12 @@ func (k *privKey) checkForSigning(data []byte, session *Session) error {
 	authRequest, err := internalssh.ParsePublicKeyUserAuthRequest(data)
 	if err != nil {
 		return errors.New("agent: refusing use of destination-constrained key to sign an unidentified signature")
+	}
+	if authRequest.Algorithm != key.Type() {
+		return errors.New("agent: refusing use of destination-constrained key: algorithm mismatch")
+	}
+	if !bytes.Equal(authRequest.PublicKey.Marshal(), key.Marshal()) {
+		return errors.New("agent: refusing use of destination-constrained key: public key mismatch")
 	}
 	if debugAgent {
 		log.Printf("public key in auth request %s, host key %s",
@@ -533,7 +539,7 @@ func (r *Keyring) Sign(ctx context.Context, session *Session, key ssh.PublicKey,
 			if options == nil {
 				options = &SignOptions{}
 			}
-			err := k.checkForSigning(data, session)
+			err := k.checkForSigning(data, session, key)
 			if debugAgent {
 				log.Printf("check restricted destination for signing for %q, result: %v", ssh.FingerprintSHA256(key), err)
 			}
