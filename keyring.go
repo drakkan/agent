@@ -17,6 +17,8 @@ import (
 	"time"
 
 	"golang.org/x/crypto/ssh"
+
+	internalssh "github.com/drakkan/agent/internal/ssh"
 )
 
 const (
@@ -116,7 +118,7 @@ func (k *privKey) checkForSigning(data []byte, session *Session) error {
 			}
 		}
 	}
-	authRequest, err := ParsePublicKeyUserAuthRequest(data)
+	authRequest, err := internalssh.ParsePublicKeyUserAuthRequest(data)
 	if err != nil {
 		return errors.New("agent: refusing use of destination-constrained key to sign an unidentified signature")
 	}
