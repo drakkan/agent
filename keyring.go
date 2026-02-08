@@ -63,7 +63,11 @@ func (k *privKey) isPermitted(username *string, session *Session) error {
 				return errors.New("agent: tried to forward though signing bind")
 			}
 		}
-		if !k.permittedByDestConstraints(fromKey, bind.HostKey, username) {
+		var checkUsername *string
+		if idx == lastBindIdx {
+			checkUsername = username
+		}
+		if !k.permittedByDestConstraints(fromKey, bind.HostKey, checkUsername) {
 			if debugAgent {
 				var fkFingerprint string
 				if fromKey != nil {
