@@ -147,7 +147,7 @@ func verifyServerKey(agent Agent) error {
 		return fmt.Errorf("rand: %v", err)
 	}
 
-	sig, err := agent.Sign(context.Background(), keys[0], buf, nil)
+	sig, err := agent.Sign(context.Background(), nil, keys[0], buf, nil)
 	if err != nil {
 		return fmt.Errorf("sign: %v", err)
 	}

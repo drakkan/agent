@@ -55,7 +55,7 @@ type Agent interface {
 	// The options parameter allows passing the current Session state. The agent
 	// validates the request against the session bindings and the key's
 	// constraints before signing.
-	Sign(ctx context.Context, key ssh.PublicKey, data []byte, options *SignOptions) (*ssh.Signature, error)
+	Sign(ctx context.Context, session *Session, key ssh.PublicKey, data []byte, options *SignOptions) (*ssh.Signature, error)
 
 	// Add adds a private key to the agent.
 	//
@@ -103,8 +103,6 @@ type Agent interface {
 // SignOptions contains additional parameters for the Sign operation.
 type SignOptions struct {
 	Flags SignatureFlags
-	// Session represents the current session state associated with the request.
-	Session *Session
 }
 
 // Session represents the state of the current connection to the agent,
@@ -247,10 +245,9 @@ func (s *server) processRequest(data []byte) (interface{}, error) {
 		}
 
 		options := &SignOptions{
-			Flags:   SignatureFlags(req.Flags),
-			Session: s.Session(),
+			Flags: SignatureFlags(req.Flags),
 		}
-		sig, err := s.agent.Sign(context.Background(), k, req.Data, options)
+		sig, err := s.agent.Sign(context.Background(), s.Session(), k, req.Data, options)
 
 		if err != nil {
 			return nil, err

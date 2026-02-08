@@ -1099,7 +1099,7 @@ func TestAgentConstraintsOperations(t *testing.T) {
 			validSession.Binds[0].SessionID,
 		)
 
-		sig, err := k.Sign(context.Background(), testPublicKeys["rsa"], authRequestData, &SignOptions{Session: validSession})
+		sig, err := k.Sign(context.Background(), validSession, testPublicKeys["rsa"], authRequestData, nil)
 		if err != nil {
 			t.Fatalf("Sign restricted (valid session) failed: %v", err)
 		}
@@ -1107,7 +1107,7 @@ func TestAgentConstraintsOperations(t *testing.T) {
 			t.Fatalf("Verify signature failed: %v", err)
 		}
 
-		_, err = k.Sign(context.Background(), testPublicKeys["rsa"], authRequestData, &SignOptions{Session: restrictedSession})
+		_, err = k.Sign(context.Background(), restrictedSession, testPublicKeys["rsa"], authRequestData, nil)
 		if err == nil {
 			t.Fatal("Sign restricted (invalid session) succeeded, expected failure")
 		}
@@ -1118,7 +1118,7 @@ func TestAgentConstraintsOperations(t *testing.T) {
 			testPublicKeys["ed25519"], // Matching the invalid session host key
 			restrictedSession.Binds[0].SessionID,
 		)
-		sig, err = k.Sign(context.Background(), testPublicKeys["ed25519"], authRequestUnrestricted, &SignOptions{Session: restrictedSession})
+		sig, err = k.Sign(context.Background(), restrictedSession, testPublicKeys["ed25519"], authRequestUnrestricted, nil)
 		if err != nil {
 			t.Fatalf("Sign unrestricted (invalid session) failed: %v", err)
 		}
@@ -1127,10 +1127,9 @@ func TestAgentConstraintsOperations(t *testing.T) {
 		}
 
 		opts := &SignOptions{
-			Flags:   SignatureFlagRsaSha256,
-			Session: validSession,
+			Flags: SignatureFlagRsaSha256,
 		}
-		sig, err = k.Sign(context.Background(), testPublicKeys["rsa"], authRequestData, opts)
+		sig, err = k.Sign(context.Background(), validSession, testPublicKeys["rsa"], authRequestData, opts)
 		if err != nil {
 			t.Fatalf("Sign with flags failed: %v", err)
 		}

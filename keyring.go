@@ -524,7 +524,7 @@ func (r *Keyring) Add(ctx context.Context, key KeyEncoding, session *Session) er
 }
 
 // Sign returns a signature for the data.
-func (r *Keyring) Sign(ctx context.Context, key ssh.PublicKey, data []byte, options *SignOptions) (*ssh.Signature, error) {
+func (r *Keyring) Sign(ctx context.Context, session *Session, key ssh.PublicKey, data []byte, options *SignOptions) (*ssh.Signature, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.locked {
@@ -538,7 +538,7 @@ func (r *Keyring) Sign(ctx context.Context, key ssh.PublicKey, data []byte, opti
 			if options == nil {
 				options = &SignOptions{}
 			}
-			err := k.checkForSigning(data, options.Session)
+			err := k.checkForSigning(data, session)
 			if debugAgent {
 				log.Printf("check restricted destination for signing for %q, result: %v", ssh.FingerprintSHA256(key), err)
 			}
